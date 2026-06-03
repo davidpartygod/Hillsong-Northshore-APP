@@ -1,0 +1,3418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hillsong Northshore — Run Sheet Builder</title>
+<style>
+  :root {
+    --bg: #f3f2ee;
+    --panel: #ffffff;
+    --ink: #111111;
+    --muted: #68645f;
+    --line: #dedbd4;
+    --accent: #111111;
+    --accent-ink: #ffffff;
+    --danger: #b42318;
+    --soft: #f7f6f2;
+    --warm: #d8c8ad;
+    --gold: #b99a5f;
+    --sky: #d7e4e8;
+    --sage: #dfe5d7;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px; line-height: 1.45;
+  }
+  header.appbar {
+    position: sticky; top: 0; z-index: 5;
+    background: rgba(243,242,238,.94); color: var(--ink); padding: 14px 22px;
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(18px);
+  }
+  header.appbar h1 { font-size: 18px; margin: 0; flex: 1; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+  header.appbar .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  button, .btn {
+    border: 1px solid var(--ink); background: #fff; color: var(--ink);
+    padding: 9px 14px; border-radius: 2px; font-size: 12px; cursor: pointer;
+    font-family: inherit; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  }
+  button:hover { background: var(--ink); color: #fff; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button.primary:hover { background: #333; border-color: #333; }
+  button.ghost { background: transparent; color: var(--ink); border-color: var(--ink); }
+  button.ghost:hover { background: var(--ink); color: #fff; }
+  button.danger { color: var(--danger); border-color: #fecdca; background: #fff; }
+  button.danger:hover { background: #fef3f2; }
+  button.tiny { padding: 3px 8px; font-size: 12px; }
+
+  main {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px; padding: 26px 22px 36px; max-width: 1480px; margin: 0 auto;
+  }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0; padding: 22px; box-shadow: 0 20px 60px rgba(17,17,17,.06); }
+  .panel h2 { margin: 0 0 16px; font-size: 12px; font-weight: 900; color: var(--ink);
+    text-transform: uppercase; letter-spacing: 0.14em; }
+
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .field label { font-size: 11px; color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+  .field input, .field textarea, .field select {
+    border: 1px solid var(--line); border-radius: 0; padding: 11px 12px;
+    font-size: 14px; font-family: inherit; background: #fff;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus {
+    outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(17,17,17,.08);
+  }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row .field { flex: 1; min-width: 130px; margin-bottom: 0; }
+
+  /* Critical: [hidden] must win over our explicit display rules like main{display:grid}.
+     Without this, hiding the editor still leaves it laid out on top of the list view. */
+  [hidden] { display: none !important; }
+
+  .module {
+    border: 1px solid var(--line); border-radius: 0; padding: 0;
+    background: #fff; margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .module-head {
+    display: flex; gap: 6px; align-items: flex-start;
+    padding: 13px 14px; cursor: pointer;
+    user-select: none;
+    transition: background 0.08s;
+  }
+  .module-head:hover { background: var(--soft); }
+  .module-head .head-info { flex: 1; min-width: 0; }
+  .module-head .title {
+    font-weight: 900; font-size: 13px; text-transform: uppercase; letter-spacing: .04em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .module-head .caret {
+    display: inline-block; width: 10px; flex-shrink: 0;
+    font-size: 9px; color: var(--muted);
+    transition: transform 0.15s;
+  }
+  .module.expanded .module-head .caret { transform: rotate(90deg); }
+  .module-head .summary {
+    color: var(--muted); font-size: 12px;
+    margin-top: 3px; padding-left: 16px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .module-head .actions { display: flex; gap: 2px; flex-shrink: 0; }
+  .module-body { display: none; padding: 0 14px 14px 14px; border-top: 1px solid var(--line); padding-top: 14px; background: var(--soft); }
+  .module.expanded .module-body { display: block; }
+  /* Divider module is decorative — no body, simpler header */
+  .module.divider-module .module-head { cursor: default; }
+  .module.divider-module .module-head:hover { background: transparent; }
+  .module.divider-module .caret { visibility: hidden; }
+  .anchor-block {
+    border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 10px;
+    background: #fffdf6;
+  }
+  .anchor-block.fixed-top { background: #f0f7ff; }
+  .anchor-label { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .anchor-label .time-input { width: 80px; font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .anchor-label .name { font-weight: 600; font-size: 14px; flex: 1; }
+
+  .bullets { display: flex; flex-direction: column; gap: 4px; }
+  .bullet { display: flex; gap: 4px; align-items: center; }
+  .bullet input { flex: 1; }
+
+  .empty-hint { color: var(--muted); font-size: 12px; font-style: italic; padding: 4px 0; }
+
+  /* --- Preview tabs (Card / Word) --- */
+  .tabs {
+    display: flex; gap: 2px; border-bottom: 1px solid var(--line);
+    margin: -4px -4px 12px; padding: 0 4px;
+  }
+  .tab {
+    background: transparent; border: none; padding: 8px 14px;
+    font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent; font-family: inherit;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+  .docx-status { font-size: 12px; color: var(--muted); margin-bottom: 6px; min-height: 16px; }
+  .docx-preview-container {
+    background: #e5e7eb; border-radius: 4px;
+    padding: 10px; overflow: auto;
+    max-height: calc(100vh - 220px);
+    text-align: left;
+  }
+  /* docx-preview library renders pages into .docx-wrapper > section.docx
+     elements with explicit page sizes. We let them render at native size
+     and scroll the container; the wrapper centres them. */
+  .docx-preview-container .docx-wrapper { padding: 0; background: transparent; }
+  .docx-preview-container section.docx {
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
+    margin: 0 auto 12px;
+    background: #fff;
+  }
+
+  /* --- Preview card (matches the source Word doc styling) --- */
+  #previewWrap { position: sticky; top: 60px; max-height: calc(100vh - 80px); overflow: auto; }
+  .card-preview {
+    background: #fff; border: 1px solid var(--line); border-radius: 4px;
+    padding: 14px 18px;
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+    font-size: 11pt; line-height: 1.25; color: #000;
+    --output-scale: 1;
+    max-width: 380px;
+  }
+  .card-preview .date-hdr {
+    font-weight: 400; font-size: 11pt; text-align: center; margin-bottom: 10pt;
+  }
+  /* Indent value: same column where module names start. ~36pt = 48px = 720 twips */
+  .card-preview { --indent: 48px; max-width: 360px; }
+  .card-preview .slot { margin-bottom: 8pt; font-size: calc(11pt * var(--output-scale)); }
+  .card-preview .slot-head { display: flex; gap: 0; }
+  .card-preview .slot-head .time { font-weight: 700; min-width: var(--indent); flex-shrink: 0; }
+  .card-preview .slot-head .main { font-weight: 700; }
+  .card-preview .slot-head .tail { font-weight: 400; }
+  .card-preview .sub { margin-top: 1pt; }
+  .card-preview .sub-heading {
+    font-weight: 700; font-size: calc(11pt * var(--output-scale)); padding-left: var(--indent);
+  }
+  .card-preview .sub-note {
+    font-style: italic; font-size: calc(9.5pt * var(--output-scale)); padding-left: var(--indent);
+  }
+  .card-preview .sub-announcement {
+    font-weight: 700; font-size: calc(11pt * var(--output-scale));
+    display: flex; align-items: baseline; gap: 4pt; margin: 1pt 0;
+    /* no padding-left — bullet sits at column 0 */
+  }
+  .card-preview .sub-announcement .ann-text {
+    background-color: #fff200; padding: 0 2px;
+  }
+  .card-preview .divider {
+    border: none; border-top: 1px solid #000; margin: 7pt 0;
+  }
+
+  /* --- Print layout: landscape A4, 3 columns, 6 cards (2 pages) ---
+       Browsers strip backgrounds in print by default and CSS multi-column
+       fragmentation across page breaks is unreliable — so we render explicit
+       .print-page wrappers (one per sheet) each laying its 3 cards out as
+       flex columns, and force colour preservation. --- */
+  @media print {
+    /* Force backgrounds + colours to print (yellow announcement highlights,
+       black divider lines, bold weights). Without this, browsers like
+       Chrome / Edge strip backgrounds in print-to-PDF. */
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    @page { size: A4 landscape; margin: 6mm 4mm 6mm 6mm; }
+    html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+    header.appbar, main, #previewWrap { display: none !important; }
+
+    .print-root { display: block !important; }
+
+    .print-page {
+      display: flex;
+      flex-direction: row;
+      gap: 8mm;
+      page-break-after: always;
+      break-after: page;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .print-page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+
+    .print-card {
+      flex: 1 1 0;
+      min-width: 0;
+      font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+      font-size: 11pt;
+      line-height: 1.25;
+      color: #000 !important;
+      --output-scale: 1;
+      padding: 0 2mm;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .print-card { --indent: 36pt; }
+    .print-card .date-hdr {
+      font-weight: 400; font-size: 11pt; text-align: center; margin-bottom: 6pt;
+    }
+    .print-card .slot { margin-bottom: 6pt; font-size: calc(11pt * var(--output-scale)); }
+    .print-card .slot-head { display: flex; }
+    .print-card .slot-head .time { font-weight: 700; min-width: var(--indent); flex-shrink: 0; }
+    .print-card .slot-head .main { font-weight: 700; }
+    .print-card .slot-head .tail { font-weight: 400; }
+    .print-card .sub-heading {
+      font-weight: 700; font-size: calc(11pt * var(--output-scale)); padding-left: var(--indent);
+    }
+    .print-card .sub-note {
+      font-style: italic; font-size: calc(9.5pt * var(--output-scale)); padding-left: var(--indent);
+    }
+    .print-card .sub-announcement {
+      font-weight: 700; font-size: calc(11pt * var(--output-scale));
+      display: flex; align-items: baseline; gap: 4pt; margin: 1pt 0;
+    }
+    .print-card .sub-announcement .ann-text {
+      background-color: #fff200 !important;
+      padding: 0 2px;
+    }
+    .print-card .divider {
+      border: none; border-top: 1px solid #000 !important; margin: 6pt 0;
+    }
+  }
+  .print-root { display: none; }
+
+  details.help { background: var(--soft); border: 1px solid var(--line); border-radius: 0; padding: 12px 14px; margin-top: 14px; font-size: 12px; color: var(--muted); }
+  details.help summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+
+  /* --- Home view: calendar + runsheet library --- */
+  #viewList { padding: 44px 22px; max-width: 1280px; margin: 0 auto; }
+  .list-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 18px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .list-header h1 { font-size: 44px; line-height: .98; margin: 0; font-weight: 900; letter-spacing: 0; text-transform: uppercase; }
+  .list-subtitle { color: var(--muted); font-size: 15px; margin: 0 0 28px; max-width: 520px; }
+  .home-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr); gap: 24px; align-items: start; }
+  .home-section-title {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .home-section-title h2 {
+    margin: 0; font-size: 13px; font-weight: 900; letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+  .calendar-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .calendar-title { font-size: 24px; line-height: 1; font-weight: 900; text-transform: uppercase; }
+  .calendar-nav { display: flex; gap: 6px; }
+  .calendar-grid {
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    border-left: 1px solid var(--line); border-top: 1px solid var(--line);
+    background: #fff; overflow: visible;
+  }
+  .calendar-weekday {
+    padding: 9px 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    background: var(--soft); color: var(--muted); font-size: 10px; font-weight: 900;
+    letter-spacing: .12em; text-transform: uppercase;
+  }
+  .calendar-day {
+    min-height: 112px; padding: 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    background: #fff; cursor: pointer; position: relative; overflow: visible; z-index: 1;
+  }
+  .calendar-day.has-range-start { z-index: 4; }
+  .calendar-day:hover { background: #fbfaf7; }
+  .calendar-day.outside { background: #f8f7f3; color: #aaa; }
+  .calendar-day.today .day-number { background: var(--ink); color: #fff; }
+  .day-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .day-number { display: inline-grid; place-items: center; width: 24px; height: 24px; font-weight: 900; font-size: 12px; }
+  .day-add { color: var(--muted); font-size: 15px; font-weight: 900; }
+  .day-events {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-top: calc(4px + (var(--range-lanes, 0) * 24px));
+  }
+  .calendar-event {
+    border: 1px solid var(--line); padding: 5px 6px; background: #fff;
+    font-size: 11px; line-height: 1.2; font-weight: 800;
+    min-width: 0; max-width: 100%; overflow: hidden;
+  }
+  .calendar-range-bar {
+    position: absolute; left: 4px; top: calc(35px + (var(--range-lane, 0) * 24px));
+    width: calc((100% + 1px) * var(--range-span, 1) - 8px);
+    z-index: 10; min-width: 0; overflow: hidden;
+    padding: 4px 7px; border: 1px solid var(--line);
+    background: #fff; font-size: 10px; line-height: 1.15; font-weight: 900;
+    text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis;
+    cursor: pointer; box-shadow: 0 2px 0 rgba(17,17,17,.04);
+  }
+  .calendar-range-bar.global { border-left: 4px solid var(--gold); background: #fffaf0; }
+  .calendar-range-bar.local { border-left: 4px solid var(--sky); background: #f5fbfd; }
+  .calendar-range-bar.calendar-only { border-left: 4px solid var(--sage); background: #fbfdf8; }
+  .calendar-event.global { border-left: 4px solid var(--gold); }
+  .calendar-event.local { border-left: 4px solid var(--sky); }
+  .calendar-event.calendar-only { border-left: 4px solid var(--sage); }
+  .event-scope { display: block; color: var(--muted); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 2px; }
+  .event-title {
+    display: block; overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+  }
+  .event-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-top: 5px; }
+  .event-actions button { width: 100%; min-width: 0; padding: 3px 2px; font-size: 9px; }
+  .event-launch {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin: 0 0 20px; padding: 14px;
+    border: 1px solid var(--line); background: var(--soft);
+  }
+  .event-launch-copy { min-width: 0; }
+  .event-launch-copy strong {
+    display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  }
+  .event-launch-copy span {
+    display: block; margin-top: 3px; color: var(--muted); font-size: 12px;
+  }
+  .time-pair { display: grid; grid-template-columns: 1fr 72px; gap: 6px; }
+  .time-pair select { min-width: 0; }
+  .event-title-input {
+    border: none !important; border-bottom: 1px solid var(--line) !important;
+    padding: 8px 0 10px !important; font-size: 24px !important; box-shadow: none !important;
+  }
+  .event-type-tabs { display: flex; gap: 8px; margin: -6px 0 14px; }
+  .event-type-tabs span {
+    padding: 9px 12px; background: var(--soft); color: var(--muted);
+    font-weight: 800; border-radius: 6px; font-size: 12px;
+  }
+  .event-type-tabs .active { background: #dceeff; color: var(--ink); }
+  .event-schedule-block {
+    display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start;
+  }
+  .event-clock { color: var(--muted); font-size: 20px; line-height: 43px; text-align: center; }
+  .event-date-line {
+    display: grid; grid-template-columns: minmax(140px, 1fr) minmax(118px, .8fr) auto minmax(140px, 1fr) minmax(118px, .8fr);
+    gap: 8px; align-items: center;
+  }
+  .event-date-line .time-pair { grid-template-columns: minmax(0, 1fr) 58px; }
+  .event-date-line input, .event-date-line select { min-width: 0; }
+  .event-date-line .dash { color: var(--muted); text-align: center; font-weight: 900; }
+  .event-date-line.all-day { grid-template-columns: minmax(145px, 1fr) auto minmax(145px, 1fr); }
+  .event-check {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 34px;
+    font-weight: 800; color: var(--muted); font-size: 13px;
+  }
+  .event-check input { margin: 0; }
+  .event-mini-options { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .event-mini-options .field { margin: 0; min-width: 180px; }
+  .event-location-row {
+    display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: center;
+  }
+  .event-location-row .pin { color: var(--muted); font-size: 20px; text-align: center; }
+  .announcement-targets {
+    border: 1px solid var(--line); background: var(--soft); padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .announcement-panel {
+    border: 1px solid var(--line); background: #fff; padding: 14px; margin-top: 12px;
+    transition: opacity .12s ease, background .12s ease;
+  }
+  .announcement-panel.disabled {
+    opacity: .56; background: var(--soft);
+  }
+  .announcement-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    border: 1px solid var(--line); background: var(--soft); padding: 12px 14px; cursor: pointer;
+  }
+  .announcement-toggle strong {
+    display: block; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  }
+  .announcement-toggle span {
+    display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 500;
+  }
+  .announcement-toggle input {
+    width: 20px; height: 20px; accent-color: var(--ink); flex: 0 0 auto;
+  }
+  .announcement-row {
+    display: grid; grid-template-columns: minmax(130px, 1fr) minmax(112px, 150px) minmax(104px, 130px) auto;
+    gap: 8px; align-items: center; background: #fff; border: 1px solid var(--line); padding: 8px;
+  }
+  .announcement-row .time-pair { grid-template-columns: minmax(0, 1fr) 62px; }
+  .announcement-row input, .announcement-row select { min-width: 0; }
+  .event-modal-note {
+    color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: -4px;
+  }
+  .output-controls {
+    display: grid; grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr);
+    gap: 12px; margin: -2px 0 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line);
+  }
+  .scale-range-wrap { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
+  .scale-range-wrap input[type="range"] { width: 100%; accent-color: var(--ink); }
+  .scale-value { min-width: 42px; text-align: right; font-weight: 900; letter-spacing: .06em; }
+  .range-field[hidden] { display: none !important; }
+  .service-picker-empty { color: var(--muted); font-size: 12px; padding: 10px; }
+  .runsheet-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: -4px 0 14px; }
+  .runsheet-tab {
+    padding: 8px 10px; border-color: var(--line); background: #fff;
+    font-size: 11px; text-align: center;
+  }
+  .runsheet-tab.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .record-list { display: flex; flex-direction: column; gap: 14px; }
+  .archive-note {
+    background: #fff8e7; border: 1px solid #ecd9a6; color: #6f561a;
+    padding: 12px 14px; margin-bottom: 14px; font-weight: 800; font-size: 12px;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+
+  /* Collapsible month group */
+  .group {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 0;
+    overflow: hidden;
+  }
+  .group-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px; cursor: pointer;
+    background: var(--soft); user-select: none;
+    transition: background 0.08s;
+  }
+  .group-header:hover { background: #eeece5; }
+  .group.expanded .group-header { border-bottom: 1px solid var(--line); }
+  .group-caret {
+    display: inline-block; width: 10px; flex-shrink: 0;
+    font-size: 10px; color: var(--muted);
+    transition: transform 0.15s;
+  }
+  .group.expanded .group-caret { transform: rotate(90deg); }
+  .group-title { font-weight: 900; color: var(--ink); font-size: 13px; text-transform: uppercase; letter-spacing: .1em; }
+  .group-count {
+    color: var(--muted); font-size: 12px; margin-left: auto;
+    background: #fff; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line);
+  }
+  .group-body { display: none; }
+  .group.expanded .group-body { display: block; }
+
+  /* Compact service row inside a group */
+  .svc-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 16px 18px; cursor: pointer;
+    border-top: 1px solid var(--line);
+    transition: background 0.06s;
+  }
+  .svc-row:first-child { border-top: none; }
+  .svc-row:hover { background: #fbfaf7; }
+  .svc-row:active { background: #eeece5; }
+  .svc-info { flex: 1; min-width: 0; }
+  .svc-title {
+    font-weight: 800; color: var(--ink); font-size: 15px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .svc-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .svc-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  .svc-actions .tiny { padding: 5px 10px; font-size: 11px; }
+  .svc-row.archived { background: #fbfaf7; }
+  .svc-row.deleted { opacity: .82; }
+
+  .empty-state {
+    text-align: center; padding: 58px 22px; color: var(--muted);
+    font-size: 14px; line-height: 1.6; background: var(--panel);
+    border: 1px dashed var(--line); border-radius: 0;
+  }
+  .empty-state strong { color: var(--ink); display: block; margin-bottom: 6px; font-size: 16px; }
+
+  .tiny.danger { color: #c53030; border-color: #fecaca; background: #fff; }
+  .tiny.danger:hover { background: #fef2f2; }
+
+  header.appbar .back-btn {
+    background: transparent; border: 1px solid transparent; color: var(--ink);
+    font-size: 14px; cursor: pointer; padding: 6px 10px;
+    font-family: inherit; font-weight: 500; border-radius: 4px;
+    margin-right: 6px;
+  }
+  header.appbar .back-btn:hover { background: var(--ink); color: #fff; }
+  header.appbar .brand-line { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 260px; }
+  .brand-mark {
+    width: 42px; height: 42px; display: grid; place-items: center;
+    background: var(--ink); color: #fff; font-weight: 900; letter-spacing: .02em;
+    flex: 0 0 auto;
+  }
+  .brand-copy { display: flex; flex-direction: column; gap: 1px; }
+  .brand-kicker {
+    font-size: 10px; color: var(--muted); font-weight: 900; letter-spacing: .16em;
+    text-transform: uppercase;
+  }
+  .module:nth-child(4n+1) { border-left: 5px solid var(--warm); }
+  .module:nth-child(4n+2) { border-left: 5px solid var(--sky); }
+  .module:nth-child(4n+3) { border-left: 5px solid var(--sage); }
+  .module:nth-child(4n+4) { border-left: 5px solid var(--gold); }
+  .divider-module { border-left-color: var(--ink) !important; }
+  .tabs { gap: 0; margin: -6px -6px 18px; padding: 0 6px; }
+  .tab {
+    border: 1px solid transparent; border-bottom: 2px solid transparent;
+    border-radius: 0; letter-spacing: .08em; text-transform: uppercase; font-weight: 900;
+  }
+  .tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .docx-preview-container { background: #eeece5; border-radius: 0; }
+  #previewWrap { top: 82px; }
+  #previewWrap .panel { min-height: 320px; }
+  .card-preview { margin: 0 auto; box-shadow: 0 14px 40px rgba(17,17,17,.12); }
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    align-items: center; justify-content: center; padding: 22px;
+    background: rgba(17,17,17,.38);
+  }
+  .modal-backdrop.active { display: flex; }
+  .modal {
+    width: min(780px, calc(100vw - 36px)); background: #fff; border: 1px solid var(--line);
+    box-shadow: 0 26px 80px rgba(17,17,17,.22); padding: 22px;
+    max-height: calc(100vh - 44px); overflow-y: auto; overflow-x: hidden;
+  }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+  .modal-head h2 { margin: 0; font-size: 16px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .modal-date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .auth-screen {
+    min-height: 100vh; display: grid; place-items: center; padding: 28px;
+    background: var(--bg);
+  }
+  .auth-card {
+    width: min(440px, 100%); background: #fff; border: 1px solid var(--line);
+    box-shadow: 0 24px 70px rgba(17,17,17,.12); padding: 26px;
+  }
+  .auth-card h1 {
+    margin: 0 0 6px; font-size: 28px; line-height: 1.05; text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .auth-card p { margin: 0 0 20px; color: var(--muted); }
+  .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 18px; }
+  .auth-tab.active { background: var(--ink); color: #fff; }
+  .auth-msg {
+    min-height: 18px; margin: 12px 0 0; color: var(--muted); font-size: 12px;
+  }
+  .auth-msg.error { color: var(--danger); font-weight: 700; }
+  .auth-config {
+    margin-top: 14px; padding: 12px; background: var(--soft); border: 1px solid var(--line);
+    color: var(--muted); font-size: 12px; line-height: 1.5;
+  }
+  .auth-user {
+    display: flex; align-items: center; gap: 8px; color: var(--muted);
+    font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  }
+  @media (max-width: 700px) {
+    html, body { overflow-x: hidden; }
+    header.appbar { padding: 12px 14px; }
+    header.appbar h1 { font-size: 14px; }
+    header.appbar .btns { width: 100%; margin-left: 0; justify-content: flex-start; gap: 7px; }
+    header.appbar .btns button { padding: 8px 10px; font-size: 11px; }
+    .brand-mark { width: 36px; height: 36px; }
+    .list-header { display: block; }
+    .list-header h1 { font-size: 30px; max-width: 100%; overflow-wrap: anywhere; }
+    .list-subtitle { max-width: 100%; overflow-wrap: anywhere; }
+    .home-grid, .event-launch { display: block; width: 100%; min-width: 0; }
+    #calendarPanel, #runsheetPanel { width: calc(100vw - 28px); max-width: 100%; }
+    .time-pair { grid-template-columns: 1fr 88px; }
+    .event-launch button { width: 100%; margin-top: 12px; }
+    .calendar-toolbar { align-items: flex-start; flex-direction: column; }
+    .calendar-grid {
+      width: 100%; min-width: 0;
+      grid-template-columns: repeat(7, minmax(0, calc((100vw - 58px) / 7)));
+    }
+    .calendar-day { min-height: 74px; padding: 5px 4px; }
+    .calendar-day, .calendar-weekday { min-width: 0; }
+    .calendar-weekday { padding: 6px 3px; font-size: 8px; }
+    .day-number { width: 18px; height: 18px; font-size: 11px; }
+    .day-add { font-size: 13px; }
+    .calendar-weekday { padding: 7px 4px; font-size: 9px; }
+    .calendar-event { font-size: 10px; padding: 4px; }
+    main, #viewList { width: 100%; max-width: 100%; padding-left: 14px; padding-right: 14px; }
+    main { display: block; }
+    main > section, .panel, #formPanel, #previewWrap { min-width: 0; max-width: 100%; }
+    #formPanel, #previewWrap .panel { width: calc(100vw - 28px); }
+    #previewWrap { position: static; margin-top: 16px; max-height: none; }
+    .panel { padding: 18px 14px; overflow: hidden; }
+    .row { flex-direction: column; }
+    .row .field { width: 100%; min-width: 0; }
+    .field input, .field textarea, .field select { width: 100%; min-width: 0; }
+    .module { width: 100%; }
+    .module-head { gap: 8px; padding: 12px 10px; flex-wrap: wrap; }
+    .module-head .head-info, .module-head .title { min-width: 0; }
+    .module-head .title span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .module-head .actions { width: 100%; gap: 3px; justify-content: flex-start; }
+    button.tiny, .svc-actions .tiny { padding: 5px 8px; font-size: 11px; }
+    .svc-row, .group-header { align-items: flex-start; }
+    .svc-actions { width: 100%; }
+    .svc-row { flex-wrap: wrap; }
+    .runsheet-tabs { grid-template-columns: 1fr; }
+    .event-schedule-block, .event-location-row { grid-template-columns: 1fr; }
+    .event-clock, .event-location-row .pin { display: none; }
+    .event-date-line, .event-date-line.all-day, .announcement-row { grid-template-columns: 1fr; }
+    .event-date-line .dash { display: none; }
+    .output-controls { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<section class="auth-screen" id="authView">
+  <div class="auth-card">
+    <div class="brand-line" style="margin-bottom:18px">
+      <div class="brand-mark" aria-hidden="true">HN</div>
+      <div class="brand-copy">
+        <div class="brand-kicker">Hillsong Northshore</div>
+        <h1 style="font-size:18px;margin:0">Service</h1>
+      </div>
+    </div>
+    <h1 id="authTitle">Login</h1>
+    <p>Sign in to sync calendar events and run sheets online.</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" type="button" id="loginTab" onclick="setAuthMode('login')">Login</button>
+      <button class="auth-tab" type="button" id="registerTab" onclick="setAuthMode('register')">Register</button>
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="authEmail" autocomplete="email" placeholder="name@example.com" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="authPassword" autocomplete="current-password" placeholder="Minimum 6 characters" />
+    </div>
+    <button class="primary" type="button" id="authSubmit" onclick="handleAuthSubmit()">Login</button>
+    <div class="auth-msg" id="authMessage"></div>
+    <div class="auth-config" id="authConfigHint" hidden>
+      Supabase is not configured yet. Create a Supabase project, run the v4.4 SQL schema, then paste your Project URL and anon key into the config constants inside this file.
+    </div>
+  </div>
+</section>
+
+<header class="appbar" id="appHeader" hidden>
+  <div class="brand-line">
+    <div class="brand-mark" aria-hidden="true">HN</div>
+    <button class="back-btn" id="backBtn" hidden type="button" onclick="goToList()">← Services</button>
+    <div class="brand-copy">
+      <div class="brand-kicker">Hillsong Northshore</div>
+      <h1>Service</h1>
+    </div>
+  </div>
+  <div class="btns" id="editorBtns" hidden>
+    <button class="ghost" onclick="createAndOpenNew()">New</button>
+    <button onclick="window.print()">Print / PDF</button>
+    <button class="primary" onclick="exportDOCX()">Download .docx</button>
+  </div>
+  <div class="auth-user" id="authUser" hidden></div>
+  <button class="ghost" type="button" id="signOutBtn" hidden onclick="signOut()">Sign out</button>
+</header>
+
+<!-- LIBRARY / LIST VIEW -->
+<section id="viewList" hidden>
+  <div class="list-header">
+    <h1>Hillsong Northshore Service</h1>
+    <button class="primary" type="button" onclick="createAndOpenNew()">+ New service</button>
+  </div>
+  <div class="list-subtitle">Plan the month calendar, then open the run sheet for each service. Calendar schedules can feed local or global announcements.</div>
+  <div class="home-grid">
+    <section class="panel" id="calendarPanel">
+      <div class="home-section-title">
+        <h2>Calendar</h2>
+      </div>
+      <div class="event-launch">
+        <div class="event-launch-copy">
+          <strong>Add event to calendar</strong>
+          <span>Create the event first, then choose which services announce it.</span>
+        </div>
+        <button class="primary" type="button" onclick="openCalendarEventModal()">+ Add event</button>
+      </div>
+      <div class="calendar-toolbar">
+        <div class="calendar-title" id="calendarTitle"></div>
+        <div class="calendar-nav">
+          <button type="button" class="tiny" onclick="moveCalendarMonth(-1)">←</button>
+          <button type="button" class="tiny" onclick="goCalendarToday()">Today</button>
+          <button type="button" class="tiny" onclick="moveCalendarMonth(1)">→</button>
+        </div>
+      </div>
+      <div class="calendar-grid" id="calendarGrid"></div>
+    </section>
+
+    <section class="panel" id="runsheetPanel">
+      <div class="home-section-title">
+        <h2>Runsheet</h2>
+        <button class="tiny" type="button" onclick="createAndOpenNew()">+ New</button>
+      </div>
+      <div class="runsheet-tabs" role="tablist">
+        <button class="runsheet-tab active" type="button" data-record-view="active" onclick="setRecordView('active')">Active</button>
+        <button class="runsheet-tab" type="button" data-record-view="archived" onclick="setRecordView('archived')">Archive</button>
+        <button class="runsheet-tab" type="button" data-record-view="deleted" onclick="setRecordView('deleted')">Bin</button>
+      </div>
+      <div class="record-list" id="recordList"></div>
+    </section>
+  </div>
+</section>
+
+<main id="viewEditor" hidden>
+  <!-- FORM -->
+  <section class="panel" id="formPanel">
+    <div class="archive-note" id="archiveNote" hidden>Archived run sheet: unarchive from the Runsheet archive before making changes.</div>
+    <h2>Service</h2>
+    <div class="row">
+      <div class="field">
+        <label>Service Date</label>
+        <input type="date" id="serviceDate" />
+      </div>
+      <div class="field">
+        <label>Service Time</label>
+        <div class="time-pair">
+          <select id="serviceHour"></select>
+          <select id="servicePeriod">
+            <option value="am">AM</option>
+            <option value="pm">PM</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Service Title (header)</label>
+        <input type="text" id="serviceTitle" placeholder="e.g. Sunday Morning" />
+      </div>
+    </div>
+    <h2 style="margin-top:18px">Service Modules <span style="text-transform:none; font-weight:400; color:var(--muted)">— drag order with ↑↓, ✕ to remove</span></h2>
+    <div id="modules"></div>
+    <div class="row" style="margin-top:8px; gap:6px">
+      <button class="tiny" type="button" onclick="addModule('worship')">+ Worship</button>
+      <button class="tiny" type="button" onclick="addModule('welcome')">+ Welcome</button>
+      <button class="tiny" type="button" onclick="addModule('offering')">+ Offering</button>
+      <button class="tiny" type="button" onclick="addModule('video')">+ Video</button>
+      <button class="tiny" type="button" onclick="addModule('globalAnnouncement')">+ Announcement</button>
+      <button class="tiny" type="button" onclick="addModule('communion')">+ Communion</button>
+      <button class="tiny" type="button" onclick="addModule('kids')">+ Kids</button>
+      <button class="tiny" type="button" onclick="addModule('panel')">+ Panel</button>
+      <button class="tiny" type="button" onclick="addModule('preacher')">+ Preacher</button>
+      <button class="tiny" type="button" onclick="addModule('benediction')">+ Benediction</button>
+      <button class="tiny" type="button" onclick="addModule('divider')">+ Divider</button>
+      <button class="tiny" type="button" onclick="addModule('custom')">+ Custom</button>
+    </div>
+
+    <details class="help">
+      <summary>Format notes</summary>
+      Every section is a module — reorder with ↑↓, remove with ✕. Times use dot notation (10.00); leave blank for untimed slots. Videos: title shown as <code># TITLE (M.SS)</code>. Output is landscape A4, 3 columns, content duplicated 6× (2 pages) for cutting into team cards. Autosaves to your browser as you type.
+    </details>
+  </section>
+
+  <!-- PREVIEW -->
+  <section id="previewWrap">
+    <div class="panel">
+      <div class="output-controls">
+        <div class="field">
+          <label>Output size</label>
+          <select id="outputScaleMode">
+            <option value="auto">Auto fit long runsheets</option>
+            <option value="manual">Manual body size</option>
+          </select>
+        </div>
+        <div class="field" id="manualScaleField">
+          <label>Body size</label>
+          <div class="scale-range-wrap">
+            <input type="range" id="outputScale" min="0.75" max="1" step="0.05" />
+            <span class="scale-value" id="outputScaleValue">100%</span>
+          </div>
+        </div>
+      </div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" type="button" data-tab="html" onclick="showTab('html')">Card Preview</button>
+        <button class="tab" type="button" data-tab="docx" onclick="showTab('docx')">Word .docx Preview</button>
+      </div>
+      <div class="tab-pane active" id="tabHtml">
+        <div class="card-preview" id="preview"></div>
+      </div>
+      <div class="tab-pane" id="tabDocx">
+        <div id="docxStatus" class="docx-status"></div>
+        <div id="docxPreview" class="docx-preview-container"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal-backdrop" id="eventModal" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="eventModalTitle">Calendar Event</h2>
+      <button type="button" class="tiny" onclick="closeCalendarEventModal()">×</button>
+    </div>
+    <div class="field">
+      <input class="event-title-input" type="text" id="modalEventTitle" placeholder="Add title" style="text-transform:uppercase" />
+    </div>
+    <div class="event-type-tabs" aria-hidden="true">
+      <span class="active">Event</span>
+    </div>
+    <div class="event-schedule-block">
+      <div class="event-clock" aria-hidden="true">○</div>
+      <div class="field">
+        <label>Date and time</label>
+        <div class="event-date-line" id="eventDateLine">
+          <input type="date" id="modalEventDate" />
+          <div class="time-pair" id="modalStartTimeWrap">
+            <select id="modalEventHour"></select>
+            <select id="modalEventPeriod">
+              <option value="am">AM</option>
+              <option value="pm">PM</option>
+            </select>
+          </div>
+          <span class="dash">–</span>
+          <input type="date" id="modalEventEndDate" />
+          <div class="time-pair" id="modalEndTimeWrap">
+            <select id="modalEventEndHour"></select>
+            <select id="modalEventEndPeriod">
+              <option value="am">AM</option>
+              <option value="pm">PM</option>
+            </select>
+          </div>
+        </div>
+        <div class="event-mini-options">
+          <label class="event-check"><input type="checkbox" id="modalEventAllDay" /> All day</label>
+        </div>
+      </div>
+    </div>
+    <div class="event-location-row">
+      <div class="pin" aria-hidden="true">+</div>
+      <div class="field">
+        <label>Location</label>
+        <input type="text" id="modalEventLocation" placeholder="Add location" />
+      </div>
+    </div>
+    <label class="announcement-toggle">
+      <span>
+        <strong>Add announcement</strong>
+        <span>Publish this event into selected service run sheets.</span>
+      </span>
+      <input type="checkbox" id="modalAnnouncementEnabled" />
+    </label>
+    <div class="announcement-panel" id="modalAnnouncementPanel">
+      <div class="field">
+        <label>Announcement format</label>
+        <select id="modalEventFormat">
+          <option value="auto">Auto date/time</option>
+          <option value="range">Date range</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Announcement line</label>
+        <input type="text" id="modalEventAnnouncement" placeholder="Auto-generated, or write your own" />
+      </div>
+      <div class="field">
+        <label>Add to service announcements</label>
+        <div class="event-modal-note">Choose the service date/time and whether the announcement belongs in Local or Global. A matching run sheet is created or updated.</div>
+        <div id="modalAnnouncementTargets" class="announcement-targets"></div>
+        <button class="tiny" type="button" id="addAnnouncementTargetBtn" style="margin-top:8px" onclick="addModalAnnouncementTarget()">+ Add service announcement</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" onclick="closeCalendarEventModal()">Cancel</button>
+      <button class="primary" type="button" id="eventSaveBtn" onclick="saveCalendarEventFromForm()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden print area: 2 pages × 3 cards -->
+<div class="print-root" id="printRoot"></div>
+
+<!-- docx-preview for in-browser .docx rendering. Loads FIRST and exposes a
+     global `docx` — we cache its API as window.__docxPreview before the docx
+     package below overwrites that global with its own (different) API. -->
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/docx-preview@0.3.6/dist/docx-preview.min.js"></script>
+<script>
+  if (typeof window.docx !== "undefined" && typeof window.docx.renderAsync === "function") {
+    window.__docxPreview = window.docx;
+  }
+</script>
+
+<!-- docx.js for .docx export -->
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+"use strict";
+
+/* =========================================================================
+   SUPABASE CONFIG — v4.4 online mode
+   1) Create a Supabase project.
+   2) Run `supabase-schema-v4.4.sql` in the Supabase SQL editor.
+   3) Paste Project URL + anon public key below.
+   ========================================================================= */
+const SUPABASE_URL = "https://windqshcrprgobjfvqrz.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_NSvDTAPTCEsIEe9KjC5Ygg_iFkGNboU";
+const CLOUD_DOC_ID = "hillsong-northshore-service";
+
+let supabaseClient = null;
+let currentUser = null;
+let cloudReady = false;
+let suppressCloudSave = false;
+let cloudSaveTimer = null;
+let authMode = "login";
+
+/* =========================================================================
+   DATA MODEL — every section is a module in a single ordered array, so any
+   section can be moved up/down or removed (the old anchor blocks are gone).
+   ========================================================================= */
+const DEFAULT_STATE = () => ({
+  date: "",                  // ISO yyyy-mm-dd
+  serviceTime: "10 am",
+  title: "Sunday Morning",
+  outputScaleMode: "auto",
+  outputScale: "1",
+  modules: [
+    { type: "worship",  time: "10.00", leader: "", songs: ["", "", "", ""] },
+    { type: "welcome",  time: "10.20", mc: "", prayerLine: true, announcements: ["", ""] },
+    { type: "divider" },
+    { type: "offering", time: "",      person: "", duration: "2min", items: ["Giving App"] },
+    { type: "video",    time: "",      title: "", runtime: "", description: "" },
+    { type: "globalAnnouncement", time: "", heading: "", items: ["", ""] },
+    { type: "divider" },
+    { type: "preacher", time: "10.40", name: "", duration: "35min",
+                        altarCallOn: true,
+                        altarCallItems: ["Good News Guidebook", "Pathways", "Prayer Team"] },
+    { type: "divider" },
+    { type: "benediction", time: "11.30" },
+  ],
+});
+
+// Migrate v1 state (with worship/welcome/middle/preacher keys + anchors) into
+// the unified `modules` array, so older saved JSON and localStorage still load.
+function migrate(s) {
+  if (!s || typeof s !== "object") return DEFAULT_STATE();
+  if (Array.isArray(s.modules)) {
+    if (typeof s.serviceTime !== "string" || !s.serviceTime.trim()) s.serviceTime = "10 am";
+    if (!["auto", "manual"].includes(s.outputScaleMode)) s.outputScaleMode = "auto";
+    if (!s.outputScale) s.outputScale = "1";
+    return s;
+  }
+  const a = s.anchors || {};
+  const modules = [];
+  if (s.worship) modules.push(Object.assign({ type: "worship", time: a.worship || "10.00" }, s.worship));
+  if (s.welcome) modules.push(Object.assign({ type: "welcome", time: a.welcome || "10.20" }, s.welcome));
+  if (Array.isArray(s.middle) && s.middle.length) {
+    modules.push({ type: "divider" });
+    s.middle.forEach(m => modules.push(Object.assign({ time: "" }, m)));
+  }
+  modules.push({ type: "divider" });
+  if (s.preacher) modules.push(Object.assign({ type: "preacher", time: a.preacher || "10.40" }, s.preacher));
+  modules.push({ type: "divider" });
+  modules.push({ type: "benediction", time: a.benediction || "11.30" });
+  return {
+    date: s.date || "",
+    serviceTime: s.serviceTime || "10 am",
+    title: s.title || "Sunday Morning",
+    outputScaleMode: ["auto", "manual"].includes(s.outputScaleMode) ? s.outputScaleMode : "auto",
+    outputScale: s.outputScale || "1",
+    modules
+  };
+}
+
+let state = DEFAULT_STATE();
+
+/* =========================================================================
+   PERSISTENCE — notes-app style: a `store` holding many records, each with
+   its own state object. `state` is always a reference into the active
+   record's state, so the existing form handlers continue to mutate it in
+   place and the record's saved data updates automatically.
+   ========================================================================= */
+const LS_STORE_KEY = "hns_runsheet_store_v1";
+const LS_KEY_V1    = "hns_runsheet_draft_v1";   // legacy single-draft (auto-migrated)
+const LS_CALENDAR_KEY = "hns_service_calendar_v1";
+
+let store = { activeId: null, records: [] };
+let calendarStore = { events: [] };
+let calendarMonth = new Date();
+calendarMonth.setDate(1);
+let editingCalendarEventId = null;
+let selectedCalendarDate = "";
+let recordView = "active";
+let modalAnnouncementTargets = [];
+
+function newRecordId() {
+  return "rec_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+}
+function nowISO() { return new Date().toISOString(); }
+
+function newRecord(initialState) {
+  return {
+    id: newRecordId(),
+    createdAt: nowISO(),
+    updatedAt: nowISO(),
+    archivedAt: "",
+    deletedAt: "",
+    state: initialState || DEFAULT_STATE(),
+  };
+}
+
+function getActiveRecord() {
+  return store.records.find(r => r.id === store.activeId) || null;
+}
+
+function isActiveRecordLocked() {
+  const r = getActiveRecord();
+  return !!(r && r.archivedAt);
+}
+
+function updateEditorLockState() {
+  const locked = isActiveRecordLocked();
+  const note = $("archiveNote");
+  if (note) note.hidden = !locked;
+  const form = $("formPanel");
+  if (!form) return;
+  form.querySelectorAll("input, select, textarea, button").forEach(el => {
+    if (el.classList.contains("back-btn")) return;
+    el.disabled = locked;
+  });
+  const btns = $("editorBtns");
+  if (btns) {
+    btns.querySelectorAll("button").forEach(btn => {
+      const isOutput = /Print|Download/.test(btn.textContent || "");
+      btn.disabled = locked && !isOutput;
+    });
+  }
+}
+
+function saveStore() {
+  try { localStorage.setItem(LS_STORE_KEY, JSON.stringify(store)); } catch (e) {}
+  scheduleCloudSave();
+}
+
+// Called on every edit. Bumps the active record's updatedAt and writes the
+// whole store. `state` already mutates the record's state in place (same ref).
+function save() {
+  if (isActiveRecordLocked()) return;
+  const r = getActiveRecord();
+  if (r) r.updatedAt = nowISO();
+  saveStore();
+}
+
+function load() {
+  // Try the new multi-record store first.
+  try {
+    const raw = localStorage.getItem(LS_STORE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.records)) {
+        parsed.records.forEach(r => {
+          r.state = migrate(r.state);
+          if (typeof r.archivedAt !== "string") r.archivedAt = "";
+          if (typeof r.deletedAt !== "string") r.deletedAt = "";
+        });
+        store = parsed;
+        return;
+      }
+    }
+  } catch (e) {}
+
+  // Migrate the legacy single-draft if present.
+  try {
+    const old = localStorage.getItem(LS_KEY_V1);
+    if (old) {
+      const r = newRecord(migrate(JSON.parse(old)));
+      store = { activeId: r.id, records: [r] };
+      saveStore();
+      return;
+    }
+  } catch (e) {}
+
+  // Brand new install.
+  store = { activeId: null, records: [] };
+}
+
+function normalizeStoreData(parsed) {
+  if (parsed && Array.isArray(parsed.records)) {
+    parsed.records.forEach(r => {
+      r.state = migrate(r.state);
+      if (typeof r.archivedAt !== "string") r.archivedAt = "";
+      if (typeof r.deletedAt !== "string") r.deletedAt = "";
+    });
+    return parsed;
+  }
+  return { activeId: null, records: [] };
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filenameBase() + ".json";
+  a.click();
+}
+
+// Import a JSON file as a NEW record. Notes-style: importing never overwrites
+// the current record — it just adds a service to the library.
+function importJSON(ev) {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const imported = migrate(JSON.parse(r.result));
+      const rec = newRecord(imported);
+      store.records.unshift(rec);
+      store.activeId = rec.id;
+      state = rec.state;
+      saveStore();
+      hydrateForm(); render();
+      showView("editor");
+    } catch (e) { alert("Couldn't read that file: " + e.message); }
+  };
+  r.readAsText(f);
+  ev.target.value = "";
+}
+
+/* ---- Record library operations ---- */
+function createAndOpenNew() {
+  const rec = newRecord();
+  store.records.unshift(rec);
+  store.activeId = rec.id;
+  state = rec.state;
+  saveStore();
+  hydrateForm(); render();
+  showView("editor");
+}
+
+function openRecord(id) {
+  const rec = store.records.find(r => r.id === id);
+  if (!rec || rec.deletedAt) return;
+  store.activeId = id;
+  state = rec.state;
+  saveStore();
+  hydrateForm(); render();
+  showView("editor");
+}
+
+function duplicateRecord(id) {
+  const orig = store.records.find(r => r.id === id);
+  if (!orig || orig.deletedAt) return;
+  const copy = newRecord(JSON.parse(JSON.stringify(orig.state)));
+  copy.state.title = (orig.state.title || "Untitled") + " (copy)";
+  copy.state.date = "";
+  copy.state.serviceTime = orig.state.serviceTime || "10 am";
+  detachCalendarManagedAnnouncements(copy.state);
+  const idx = store.records.findIndex(r => r.id === id);
+  store.records.splice(idx, 0, copy);
+  saveStore();
+  renderRecordList();
+}
+
+function deleteRecord(id) {
+  const rec = store.records.find(r => r.id === id);
+  if (!rec) return;
+  const label = (rec.state.title || "Untitled") +
+                (rec.state.date ? " (" + prettyDate(rec.state.date) + ")" : "");
+  if (!confirm(`Move "${label}" to Bin?`)) return;
+  rec.deletedAt = nowISO();
+  rec.archivedAt = "";
+  if (store.activeId === id) store.activeId = null;
+  saveStore();
+  renderRecordList();
+}
+
+function archiveRecord(id) {
+  const rec = store.records.find(r => r.id === id);
+  if (!rec || rec.deletedAt) return;
+  rec.archivedAt = nowISO();
+  saveStore();
+  renderRecordList();
+}
+
+function unarchiveRecord(id) {
+  const rec = store.records.find(r => r.id === id);
+  if (!rec || rec.deletedAt) return;
+  rec.archivedAt = "";
+  saveStore();
+  renderRecordList();
+}
+
+function restoreRecord(id) {
+  const rec = store.records.find(r => r.id === id);
+  if (!rec) return;
+  rec.deletedAt = "";
+  rec.archivedAt = "";
+  rec.updatedAt = nowISO();
+  saveStore();
+  renderRecordList();
+}
+
+function permanentlyDeleteRecord(id) {
+  const rec = store.records.find(r => r.id === id);
+  if (!rec) return;
+  const label = serviceDisplayTitle(rec.state);
+  if (!confirm(`Permanently delete "${label}"? This can't be undone.`)) return;
+  store.records = store.records.filter(r => r.id !== id);
+  if (store.activeId === id) store.activeId = null;
+  saveStore();
+  renderRecordList();
+}
+
+/* ---- "New" behaviour from inside the editor ---- */
+// Previously "New" called resetAll() which wiped the current record. With the
+// notes-style library that's wrong — clicking New from inside the editor now
+// just adds a new service to the library (the previous one stays saved).
+// Kept under the old name in case anyone called it externally.
+function resetAll() { createAndOpenNew(); }
+
+/* =========================================================================
+   CALENDAR — schedules can feed local/global announcement modules by date
+   ========================================================================= */
+function loadCalendar() {
+  try {
+    const raw = localStorage.getItem(LS_CALENDAR_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.events)) {
+        calendarStore = parsed;
+        calendarStore.events.forEach(e => {
+          e.endDate = normalizeEndDate(e.date, e.endDate);
+          if (!["local", "global", "calendar"].includes(e.scope)) e.scope = "local";
+          const hadAnnounceTargets = Array.isArray(e.announceTo);
+          if (!hadAnnounceTargets) e.announceTo = [];
+          if (typeof e.legacySync !== "boolean") e.legacySync = !hadAnnounceTargets && e.scope !== "calendar";
+          if (!["auto", "range", "custom"].includes(e.format)) e.format = e.format === "date" ? "auto" : "auto";
+          e.allDay = !!e.allDay;
+          if (typeof e.location !== "string") e.location = "";
+          if (typeof e.endServiceTime !== "string") e.endServiceTime = e.serviceTime || "";
+          e.repeat = "none";
+          e.repeatUntil = normalizeEndDate(e.date, e.endDate || e.date);
+          if (!Array.isArray(e.announceTargets)) {
+            e.announceTargets = (e.announceTo || []).map(id => {
+              const rec = store.records.find(r => r.id === id);
+              return {
+                recordId: id,
+                date: rec && rec.state ? rec.state.date : e.date,
+                serviceTime: rec && rec.state ? rec.state.serviceTime : (e.serviceTime || "10 am"),
+                scope: e.scope === "global" ? "global" : "local"
+              };
+            });
+          }
+          if (!e.announcementText) e.announcementText = buildAnnouncementLine(e.title, e.date, e.endDate, e.serviceTime, e.format, "", e.allDay);
+          e.title = eventNameForAnnouncement(e.title);
+        });
+        return;
+      }
+    }
+  } catch (e) {}
+  calendarStore = { events: [] };
+}
+
+function saveCalendar() {
+  try { localStorage.setItem(LS_CALENDAR_KEY, JSON.stringify(calendarStore)); } catch (e) {}
+  scheduleCloudSave();
+}
+
+function normalizeCalendarStore(parsed) {
+  const next = parsed && Array.isArray(parsed.events) ? parsed : { events: [] };
+  next.events.forEach(e => {
+    e.endDate = normalizeEndDate(e.date, e.endDate);
+    if (!["local", "global", "calendar"].includes(e.scope)) e.scope = "local";
+    if (!Array.isArray(e.announceTo)) e.announceTo = [];
+    if (typeof e.legacySync !== "boolean") e.legacySync = false;
+    if (!["auto", "range", "custom"].includes(e.format)) e.format = "auto";
+    e.allDay = !!e.allDay;
+    if (typeof e.location !== "string") e.location = "";
+    if (typeof e.endServiceTime !== "string") e.endServiceTime = e.serviceTime || "";
+    e.repeat = "none";
+    e.repeatUntil = normalizeEndDate(e.date, e.endDate || e.date);
+    if (!Array.isArray(e.announceTargets)) e.announceTargets = [];
+    if (!e.announcementText) e.announcementText = buildAnnouncementLine(e.title, e.date, e.endDate, e.serviceTime, e.format, "", e.allDay);
+    e.title = eventNameForAnnouncement(e.title);
+  });
+  return next;
+}
+
+function scheduleCloudSave() {
+  if (!cloudReady || suppressCloudSave || !supabaseClient || !currentUser) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(saveCloudNow, 700);
+}
+
+async function saveCloudNow() {
+  if (!cloudReady || suppressCloudSave || !supabaseClient || !currentUser) return;
+  const payload = {
+    id: CLOUD_DOC_ID,
+    store,
+    calendar: calendarStore,
+    updated_by: currentUser.id,
+    updated_at: nowISO(),
+  };
+  const { error } = await supabaseClient
+    .from("app_state")
+    .upsert(payload, { onConflict: "id" });
+  if (error) setAuthMessage("Cloud save failed: " + error.message, true);
+}
+
+async function loadCloudState() {
+  suppressCloudSave = true;
+  const { data, error } = await supabaseClient
+    .from("app_state")
+    .select("store, calendar")
+    .eq("id", CLOUD_DOC_ID)
+    .maybeSingle();
+
+  if (error) {
+    suppressCloudSave = false;
+    throw error;
+  }
+
+  if (data) {
+    store = normalizeStoreData(data.store);
+    calendarStore = normalizeCalendarStore(data.calendar);
+  } else {
+    load();
+    loadCalendar();
+    store = normalizeStoreData(store);
+    calendarStore = normalizeCalendarStore(calendarStore);
+  }
+
+  try { localStorage.setItem(LS_STORE_KEY, JSON.stringify(store)); } catch (e) {}
+  try { localStorage.setItem(LS_CALENDAR_KEY, JSON.stringify(calendarStore)); } catch (e) {}
+  suppressCloudSave = false;
+}
+
+function calendarEventId() {
+  return "evt_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+}
+
+function isoFromDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function dateFromISO(iso) {
+  const [y, m, d] = (iso || "").split("-").map(Number);
+  return new Date(y || 2000, (m || 1) - 1, d || 1);
+}
+
+function todayISO() { return isoFromDate(new Date()); }
+
+function compareISO(a, b) {
+  return (a || "").localeCompare(b || "");
+}
+
+function normalizeEndDate(startDate, endDate) {
+  if (!endDate || compareISO(endDate, startDate) < 0) return startDate;
+  return endDate;
+}
+
+function addMonthsClamped(date, months) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const targetMonth = d.getMonth() + months;
+  const day = d.getDate();
+  const out = new Date(d.getFullYear(), targetMonth, 1);
+  const lastDay = new Date(out.getFullYear(), out.getMonth() + 1, 0).getDate();
+  out.setDate(Math.min(day, lastDay));
+  return out;
+}
+
+function daysBetween(startISO, endISO) {
+  const a = dateFromISO(startISO).getTime();
+  const b = dateFromISO(endISO).getTime();
+  return Math.round((b - a) / 86400000);
+}
+
+function addDaysISO(iso, days) {
+  const d = dateFromISO(iso);
+  d.setDate(d.getDate() + days);
+  return isoFromDate(d);
+}
+
+function occurrenceStartDates(ev, monthStart, monthEnd) {
+  if (!ev || !ev.date) return [];
+  const repeat = ev.repeat || "none";
+  const until = normalizeEndDate(ev.date, ev.repeatUntil || ev.endDate || ev.date);
+  if (repeat === "none") return [ev.date];
+  const starts = [];
+  let d = dateFromISO(ev.date);
+  let guard = 0;
+  while (compareISO(isoFromDate(d), until) <= 0 && guard < 240) {
+    const iso = isoFromDate(d);
+    const spanEnd = addDaysISO(iso, Math.max(0, daysBetween(ev.date, normalizeEndDate(ev.date, ev.endDate))));
+    if (compareISO(spanEnd, monthStart) >= 0 && compareISO(iso, monthEnd) <= 0) starts.push(iso);
+    if (repeat === "weekly") d.setDate(d.getDate() + 7);
+    else d = addMonthsClamped(d, 1);
+    guard++;
+  }
+  return starts;
+}
+
+function dateInEventRange(ev, iso) {
+  return iso === ev.date;
+}
+
+function eventDateLabel(ev) {
+  const end = normalizeEndDate(ev.date, ev.endDate);
+  if (!ev.date || end === ev.date) return "";
+  return `${prettyDate(ev.date)} - ${prettyDate(end)}`;
+}
+
+function repeatLabel(ev) {
+  return "";
+}
+
+function prettyDateLong(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return `${d} ${MONTHS_LONG[m - 1]}`;
+}
+
+function prettyDateShort(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  if (!y || !m || !d) return iso;
+  return `${d} ${months[m - 1]}`;
+}
+
+function compactServiceTime(value) {
+  return normalizeServiceTime(value).replace(/\s+/g, "");
+}
+
+function eventNameForAnnouncement(title) {
+  return (title || "").replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+function autoFormatKind(startDate, endDate, serviceTime) {
+  const end = normalizeEndDate(startDate, endDate);
+  if (end !== startDate) return "range";
+  if (serviceTime) return "dateTime";
+  return "date";
+}
+
+function buildAnnouncementLine(title, startDate, endDate, serviceTime, format, customLine, allDay) {
+  const name = eventNameForAnnouncement(title);
+  if (!name) return "";
+  if (format === "custom") return (customLine || "").trim() || name;
+  const kind = format === "range" ? "range" : autoFormatKind(startDate, endDate, allDay ? "" : serviceTime);
+  const end = normalizeEndDate(startDate, endDate);
+  const time = allDay ? "" : compactServiceTime(serviceTime);
+  let detail = "";
+  if (kind === "date") detail = prettyDateLong(startDate);
+  else if (kind === "range") detail = `${prettyDateShort(startDate)} – ${prettyDateShort(end)}`;
+  else if (kind === "dateTime") detail = [prettyDateLong(startDate), time].filter(Boolean).join(" ");
+  return detail ? `${name}: ${detail}` : name;
+}
+
+function normalizeServiceTime(value) {
+  return (value || "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function serviceTimeLabel(value) {
+  return (value || "").toString().trim();
+}
+
+function parseServiceTime(value) {
+  const raw = normalizeServiceTime(value);
+  const m = raw.match(/^(\d{1,2})(?::\d{2})?\s*(am|pm)$/);
+  if (m) return { hour: String(Math.min(12, Math.max(1, Number(m[1])))), period: m[2] };
+  const n = raw.match(/^(\d{1,2})$/);
+  if (n) return { hour: String(Math.min(12, Math.max(1, Number(n[1])))), period: "am" };
+  return { hour: "10", period: "am" };
+}
+
+function timeFromSelect(hourId, periodId) {
+  const hour = $(hourId).value || "10";
+  const period = $(periodId).value || "am";
+  return `${hour} ${period}`;
+}
+
+function setTimeSelect(hourId, periodId, value) {
+  const parsed = parseServiceTime(value);
+  $(hourId).value = parsed.hour;
+  $(periodId).value = parsed.period;
+}
+
+function populateTimeSelects() {
+  ["eventServiceHour", "modalEventHour", "modalEventEndHour", "serviceHour"].forEach(id => {
+    const el = $(id);
+    if (!el || el.options.length) return;
+    for (let i = 1; i <= 12; i++) {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = String(i);
+      el.append(opt);
+    }
+  });
+}
+
+function serviceDisplayTitle(s) {
+  return [s.title || "Untitled service", serviceTimeLabel(s.serviceTime)].filter(Boolean).join(" ");
+}
+
+function serviceRecordForDateTime(date, serviceTime) {
+  const targetTime = normalizeServiceTime(serviceTime);
+  return store.records.find(r =>
+    r.state &&
+    !r.archivedAt &&
+    !r.deletedAt &&
+    r.state.date === date &&
+    normalizeServiceTime(r.state.serviceTime) === targetTime
+  ) || null;
+}
+
+function serviceRecordById(id) {
+  return store.records.find(r => r.id === id && !r.deletedAt && !r.archivedAt) || null;
+}
+
+function availableServiceRecords() {
+  return store.records
+    .filter(r => r.state && !r.deletedAt && !r.archivedAt)
+    .slice()
+    .sort((a, b) =>
+      (a.state.date || "").localeCompare(b.state.date || "") ||
+      normalizeServiceTime(a.state.serviceTime).localeCompare(normalizeServiceTime(b.state.serviceTime)) ||
+      serviceDisplayTitle(a.state).localeCompare(serviceDisplayTitle(b.state))
+    );
+}
+
+function getOrCreateServiceRecordForDateTime(date, serviceTime) {
+  let rec = serviceRecordForDateTime(date, serviceTime);
+  if (rec) return rec;
+  const s = DEFAULT_STATE();
+  s.date = date;
+  s.serviceTime = serviceTimeLabel(serviceTime);
+  s.title = "Sunday Morning";
+  rec = newRecord(s);
+  store.records.unshift(rec);
+  return rec;
+}
+
+function detachCalendarManagedAnnouncements(s) {
+  (s.modules || []).forEach(m => {
+    if (m.type === "welcome") {
+      delete m._calendarLocalIds;
+      delete m._calendarLocalTexts;
+      delete m._calendarEventTexts;
+    }
+    if (m.type === "globalAnnouncement") {
+      delete m._calendarGlobalIds;
+      delete m._calendarGlobalTexts;
+      delete m._calendarEventTexts;
+    }
+  });
+}
+
+function ensureModule(s, type) {
+  let m = (s.modules || []).find(x => x.type === type);
+  if (m) return m;
+  m = newModule(type);
+  if (type === "welcome") {
+    const worshipIdx = s.modules.findIndex(x => x.type === "worship");
+    s.modules.splice(worshipIdx >= 0 ? worshipIdx + 1 : 0, 0, m);
+  } else if (type === "globalAnnouncement") {
+    const preacherIdx = s.modules.findIndex(x => x.type === "preacher");
+    s.modules.splice(preacherIdx >= 0 ? preacherIdx : s.modules.length, 0, m);
+  } else {
+    s.modules.push(m);
+  }
+  return m;
+}
+
+function syncCalendarTexts(module, listKey, idsKey, textsKey, events) {
+  const oldTexts = Array.isArray(module[textsKey]) ? module[textsKey] : [];
+  const current = Array.isArray(module[listKey]) ? module[listKey] : [];
+  const next = current.filter(item => !oldTexts.includes(item));
+  const eventTexts = events.map(e => (e.announcementText || e.title || "").trim()).filter(Boolean);
+  eventTexts.forEach(text => {
+    if (!next.includes(text)) next.push(text);
+  });
+  module[listKey] = next;
+  module[idsKey] = events.map(e => e.id);
+  module[textsKey] = eventTexts;
+}
+
+function slotKey(date, serviceTime) {
+  return `${date || ""}__${normalizeServiceTime(serviceTime)}`;
+}
+
+function syncCalendarEventsForSlot(date, serviceTime) {
+  if (!date) return;
+  const targetKey = slotKey(date, serviceTime);
+  const events = calendarStore.events.filter(e =>
+    e.legacySync === true &&
+    e.date === date &&
+    slotKey(e.date, e.serviceTime) === targetKey &&
+    e.scope !== "calendar" &&
+    e.title &&
+    e.title.trim()
+  );
+  let rec = serviceRecordForDateTime(date, serviceTime);
+  if (!rec && events.length) rec = getOrCreateServiceRecordForDateTime(date, serviceTime);
+  if (!rec) return;
+
+  const localEvents = events.filter(e => e.scope === "local");
+  const globalEvents = events.filter(e => e.scope === "global");
+
+  const existingWelcome = rec.state.modules.find(x => x.type === "welcome");
+  if (localEvents.length || (existingWelcome && Array.isArray(existingWelcome._calendarLocalTexts))) {
+    const welcome = ensureModule(rec.state, "welcome");
+    syncCalendarTexts(welcome, "announcements", "_calendarLocalIds", "_calendarLocalTexts", localEvents);
+  }
+
+  const existingGlobal = rec.state.modules.find(x => x.type === "globalAnnouncement");
+  if (globalEvents.length || (existingGlobal && Array.isArray(existingGlobal._calendarGlobalTexts))) {
+    const globalModule = ensureModule(rec.state, "globalAnnouncement");
+    if (!globalModule.heading && globalEvents.length) globalModule.heading = "ANNOUNCEMENTS";
+    syncCalendarTexts(globalModule, "items", "_calendarGlobalIds", "_calendarGlobalTexts", globalEvents);
+    const emptyManagedGlobal = !globalEvents.length &&
+      (globalModule.items || []).length === 0 &&
+      (globalModule.heading || "") === "ANNOUNCEMENTS";
+    if (emptyManagedGlobal) {
+      rec.state.modules = rec.state.modules.filter(x => x !== globalModule);
+    }
+  }
+
+  rec.updatedAt = nowISO();
+}
+
+function syncCalendarSlots(...slots) {
+  const normalized = slots
+    .filter(Boolean)
+    .map(slot => ({ date: slot.date, serviceTime: serviceTimeLabel(slot.serviceTime) }))
+    .filter(slot => slot.date);
+  const seen = new Set();
+  normalized.forEach(slot => {
+    const key = slotKey(slot.date, slot.serviceTime);
+    if (seen.has(key)) return;
+    seen.add(key);
+    syncCalendarEventsForSlot(slot.date, slot.serviceTime);
+  });
+  saveCalendar();
+  saveStore();
+  const active = getActiveRecord();
+  if (active && normalized.some(slot =>
+    active.state.date === slot.date &&
+    normalizeServiceTime(active.state.serviceTime) === normalizeServiceTime(slot.serviceTime)
+  )) {
+    state = active.state;
+    hydrateForm();
+    render();
+  }
+  renderRecordList();
+  renderCalendar();
+}
+
+function resetCalendarForm(date) {
+  editingCalendarEventId = null;
+  selectedCalendarDate = date || todayISO();
+  const selectedDate = dateFromISO(selectedCalendarDate);
+  calendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+}
+
+function quickAddCalendarEvent() {
+  openCalendarEventModal();
+}
+
+function newAnnouncementTarget(date, serviceTime, scope) {
+  return {
+    date: date || $("modalEventDate")?.value || selectedCalendarDate || todayISO(),
+    serviceTime: serviceTime || "10 am",
+    scope: scope === "global" ? "global" : "local",
+  };
+}
+
+function timePairElement(prefix, value, onChange) {
+  const wrap = document.createElement("div");
+  wrap.className = "time-pair";
+  const hour = document.createElement("select");
+  const period = document.createElement("select");
+  for (let i = 1; i <= 12; i++) {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = String(i);
+    hour.append(opt);
+  }
+  ["am", "pm"].forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p.toUpperCase();
+    period.append(opt);
+  });
+  const parsed = parseServiceTime(value || "10 am");
+  hour.value = parsed.hour;
+  period.value = parsed.period;
+  hour.onchange = period.onchange = () => onChange(`${hour.value} ${period.value}`);
+  wrap.append(hour, period);
+  return wrap;
+}
+
+function renderModalAnnouncementTargets() {
+  const root = $("modalAnnouncementTargets");
+  if (!root) return;
+  const enabled = !!($("modalAnnouncementEnabled") && $("modalAnnouncementEnabled").checked);
+  root.innerHTML = "";
+  if (!modalAnnouncementTargets.length) {
+    const empty = document.createElement("div");
+    empty.className = "service-picker-empty";
+    empty.textContent = enabled
+      ? "No services selected. Add a service announcement row if this event should appear in a run sheet."
+      : "Announcement is off. This event stays on the calendar only.";
+    root.append(empty);
+    return;
+  }
+  modalAnnouncementTargets.forEach((target, idx) => {
+    const row = document.createElement("div");
+    row.className = "announcement-row";
+    const date = document.createElement("input");
+    date.type = "date";
+    date.value = target.date || "";
+    date.disabled = !enabled;
+    date.oninput = () => { modalAnnouncementTargets[idx].date = date.value; };
+
+    const time = timePairElement(`target_${idx}`, target.serviceTime, value => {
+      modalAnnouncementTargets[idx].serviceTime = value;
+    });
+    time.querySelectorAll("select").forEach(el => { el.disabled = !enabled; });
+
+    const scope = document.createElement("select");
+    [["local", "Local"], ["global", "Global"]].forEach(([value, label]) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      scope.append(opt);
+    });
+    scope.value = target.scope === "global" ? "global" : "local";
+    scope.disabled = !enabled;
+    scope.onchange = () => { modalAnnouncementTargets[idx].scope = scope.value; };
+
+    const del = mkBtn("×", () => {
+      modalAnnouncementTargets.splice(idx, 1);
+      renderModalAnnouncementTargets();
+    }, "danger");
+    del.disabled = !enabled;
+    row.append(date, time, scope, del);
+    root.append(row);
+  });
+}
+
+function addModalAnnouncementTarget(target) {
+  if ($("modalAnnouncementEnabled") && !$("modalAnnouncementEnabled").checked) {
+    $("modalAnnouncementEnabled").checked = true;
+    updateModalAnnouncementState();
+  }
+  modalAnnouncementTargets.push(target || newAnnouncementTarget());
+  renderModalAnnouncementTargets();
+}
+
+function normalizedModalAnnouncementTargets() {
+  if ($("modalAnnouncementEnabled") && !$("modalAnnouncementEnabled").checked) return [];
+  return modalAnnouncementTargets
+    .map(t => ({
+      date: t.date || "",
+      serviceTime: serviceTimeLabel(t.serviceTime || "10 am"),
+      scope: t.scope === "global" ? "global" : "local",
+    }))
+    .filter(t => t.date);
+}
+
+function updateModalAnnouncementState() {
+  const enabled = !!($("modalAnnouncementEnabled") && $("modalAnnouncementEnabled").checked);
+  const panel = $("modalAnnouncementPanel");
+  if (panel) panel.classList.toggle("disabled", !enabled);
+  ["modalEventFormat", "modalEventAnnouncement"].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = !enabled;
+  });
+  const addBtn = $("addAnnouncementTargetBtn");
+  if (addBtn) addBtn.disabled = !enabled;
+  if (enabled && !modalAnnouncementTargets.length) {
+    modalAnnouncementTargets.push(newAnnouncementTarget());
+  }
+  renderModalAnnouncementTargets();
+}
+
+function updateModalEventControls() {
+  const allDay = !!($("modalEventAllDay") && $("modalEventAllDay").checked);
+  ["modalEventHour", "modalEventPeriod", "modalEventEndHour", "modalEventEndPeriod"].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = allDay;
+  });
+  if ($("modalStartTimeWrap")) $("modalStartTimeWrap").hidden = allDay;
+  if ($("modalEndTimeWrap")) $("modalEndTimeWrap").hidden = allDay;
+  if ($("eventDateLine")) $("eventDateLine").classList.toggle("all-day", allDay);
+}
+
+function managedModuleForScope(s, scope) {
+  if (scope === "global") {
+    const m = ensureModule(s, "globalAnnouncement");
+    if (!m.heading) m.heading = "ANNOUNCEMENTS";
+    if (!Array.isArray(m.items)) m.items = [];
+    return { module: m, listKey: "items" };
+  }
+  if (scope === "local") {
+    const m = ensureModule(s, "welcome");
+    if (!Array.isArray(m.announcements)) m.announcements = [];
+    return { module: m, listKey: "announcements" };
+  }
+  return null;
+}
+
+function removeManagedEventText(s, scope, eventId) {
+  const target = managedModuleForScope(s, scope);
+  if (!target) return false;
+  const { module, listKey } = target;
+  module._calendarEventTexts = module._calendarEventTexts || {};
+  const oldText = module._calendarEventTexts[eventId];
+  let changed = false;
+  if (oldText && Array.isArray(module[listKey])) {
+    const idx = module[listKey].indexOf(oldText);
+    if (idx >= 0) {
+      module[listKey].splice(idx, 1);
+      changed = true;
+    }
+  }
+  if (oldText) {
+    delete module._calendarEventTexts[eventId];
+    changed = true;
+  }
+  return changed;
+}
+
+function upsertManagedEventText(s, ev, scope) {
+  if (!ev || !ev.announcementText || !["local", "global"].includes(scope)) return false;
+  const target = managedModuleForScope(s, scope);
+  if (!target) return false;
+  const { module, listKey } = target;
+  module._calendarEventTexts = module._calendarEventTexts || {};
+  const list = module[listKey] = Array.isArray(module[listKey]) ? module[listKey] : [];
+  const oldText = module._calendarEventTexts[ev.id];
+  const nextText = ev.announcementText.trim();
+  if (!nextText) return false;
+  if (oldText) {
+    const idx = list.indexOf(oldText);
+    if (idx >= 0) {
+      list[idx] = nextText;
+      module._calendarEventTexts[ev.id] = nextText;
+      return oldText !== nextText;
+    }
+    return false;
+  }
+  if (!list.includes(nextText)) list.push(nextText);
+  module._calendarEventTexts[ev.id] = nextText;
+  return true;
+}
+
+function syncCalendarEventTargets(ev, priorEv) {
+  const oldTargets = (priorEv && Array.isArray(priorEv.announceTargets)) ? priorEv.announceTargets : [];
+  const newTargets = Array.isArray(ev.announceTargets) ? ev.announceTargets : [];
+  const oldById = new Map(oldTargets.filter(t => t.recordId).map(t => [t.recordId, t]));
+  const newById = new Map(newTargets.filter(t => t.recordId).map(t => [t.recordId, t]));
+  const touched = new Set([...oldById.keys(), ...newById.keys()]);
+  touched.forEach(id => {
+    const rec = serviceRecordById(id);
+    if (!rec) return;
+    const oldTarget = oldById.get(id);
+    const newTarget = newById.get(id);
+    let changed = false;
+    if (oldTarget && (!newTarget || oldTarget.scope !== newTarget.scope)) {
+      changed = removeManagedEventText(rec.state, oldTarget.scope, ev.id) || changed;
+    }
+    if (newTarget) {
+      changed = upsertManagedEventText(rec.state, ev, newTarget.scope) || changed;
+    }
+    if (changed) rec.updatedAt = nowISO();
+  });
+  saveCalendar();
+  saveStore();
+  const active = getActiveRecord();
+  if (active && touched.has(active.id)) {
+    state = active.state;
+    hydrateForm();
+    render();
+  }
+  renderRecordList();
+  renderCalendar();
+}
+
+function removeCalendarEventFromTargets(ev) {
+  const targets = Array.isArray(ev.announceTargets)
+    ? ev.announceTargets
+    : (Array.isArray(ev.announceTo) ? ev.announceTo.map(id => ({ recordId: id, scope: ev.scope })) : []);
+  targets.forEach(target => {
+    const rec = serviceRecordById(target.recordId);
+    if (!rec) return;
+    if (removeManagedEventText(rec.state, target.scope, ev.id)) rec.updatedAt = nowISO();
+  });
+  saveCalendar();
+  saveStore();
+  renderRecordList();
+  renderCalendar();
+}
+
+function openCalendarEventModal(id) {
+  const ev = id ? calendarStore.events.find(e => e.id === id) : null;
+  editingCalendarEventId = ev ? ev.id : null;
+  const date = ev ? ev.date : (selectedCalendarDate || todayISO());
+  $("eventModalTitle").textContent = ev ? "Edit Event" : "Add Event";
+  $("modalEventDate").value = date;
+  $("modalEventEndDate").value = ev ? normalizeEndDate(ev.date, ev.endDate) : date;
+  setTimeSelect("modalEventHour", "modalEventPeriod", ev ? ev.serviceTime : "10 am");
+  setTimeSelect("modalEventEndHour", "modalEventEndPeriod", ev ? (ev.endServiceTime || ev.serviceTime || "11 am") : "11 am");
+  $("modalEventAllDay").checked = !!(ev && ev.allDay);
+  $("modalEventTitle").value = ev ? eventNameForAnnouncement(ev.title) : "";
+  $("modalEventLocation").value = ev ? (ev.location || "") : "";
+  $("modalEventFormat").value = ev && ["auto", "range", "custom"].includes(ev.format) ? ev.format : "auto";
+  $("modalEventAnnouncement").value = ev
+    ? (ev.announcementText || buildAnnouncementLine(ev.title, ev.date, ev.endDate, ev.serviceTime, ev.format || "auto", "", ev.allDay))
+    : "";
+  const hasAnnouncementTargets = !!(ev && Array.isArray(ev.announceTargets) && ev.announceTargets.length);
+  $("modalAnnouncementEnabled").checked = hasAnnouncementTargets;
+  modalAnnouncementTargets = ev && Array.isArray(ev.announceTargets) && ev.announceTargets.length
+    ? ev.announceTargets.map(t => ({
+        date: t.date || date,
+        serviceTime: t.serviceTime || "10 am",
+        scope: t.scope === "global" ? "global" : "local",
+        recordId: t.recordId || "",
+      }))
+    : [];
+  renderModalAnnouncementTargets();
+  $("eventSaveBtn").textContent = ev ? "Update" : "Add";
+  $("eventModal").classList.add("active");
+  updateModalEventControls();
+  updateModalAnnouncementState();
+  refreshModalAnnouncementLine(!!ev);
+  setTimeout(() => $("modalEventTitle").focus(), 0);
+}
+
+function closeCalendarEventModal() {
+  $("eventModal").classList.remove("active");
+}
+
+function refreshModalAnnouncementLine(force) {
+  const format = $("modalEventFormat").value || "auto";
+  if (!force && format === "custom") return;
+  const title = $("modalEventTitle").value.toUpperCase();
+  const date = $("modalEventDate").value || todayISO();
+  const endDate = normalizeEndDate(date, $("modalEventEndDate").value);
+  const serviceTime = timeFromSelect("modalEventHour", "modalEventPeriod");
+  const allDay = !!($("modalEventAllDay") && $("modalEventAllDay").checked);
+  $("modalEventAnnouncement").value = buildAnnouncementLine(title, date, endDate, serviceTime, format, $("modalEventAnnouncement").value, allDay);
+}
+
+function saveCalendarEventFromForm() {
+  const date = $("modalEventDate").value;
+  const endDate = normalizeEndDate(date, $("modalEventEndDate").value);
+  const serviceTime = timeFromSelect("modalEventHour", "modalEventPeriod");
+  const endServiceTime = timeFromSelect("modalEventEndHour", "modalEventEndPeriod");
+  const title = eventNameForAnnouncement($("modalEventTitle").value);
+  const format = $("modalEventFormat").value || "auto";
+  const customLine = $("modalEventAnnouncement").value.trim();
+  const location = $("modalEventLocation").value.trim();
+  const allDay = !!($("modalEventAllDay") && $("modalEventAllDay").checked);
+  const repeat = "none";
+  const repeatUntil = endDate;
+  if (!date) { alert("Choose a date for this event."); return; }
+  if (!title) { alert("Add the event name."); return; }
+  const announcementText = buildAnnouncementLine(title, date, endDate, serviceTime, format, customLine, allDay);
+  const announceTargets = normalizedModalAnnouncementTargets().map(target => {
+    const rec = getOrCreateServiceRecordForDateTime(target.date, target.serviceTime);
+    rec.updatedAt = nowISO();
+    return Object.assign({}, target, { recordId: rec.id });
+  });
+  const announceTo = announceTargets.map(t => t.recordId);
+  const scope = announceTargets[0] ? announceTargets[0].scope : "local";
+
+  const existing = calendarStore.events.find(e => e.id === editingCalendarEventId);
+  const priorEv = existing ? JSON.parse(JSON.stringify(existing)) : null;
+  if (existing) {
+    existing.date = date;
+    existing.endDate = endDate;
+    existing.serviceTime = serviceTime;
+    existing.endServiceTime = endServiceTime;
+    existing.title = title;
+    existing.location = location;
+    existing.announcementText = announcementText;
+    existing.format = format;
+    existing.scope = scope;
+    existing.announceTo = announceTo;
+    existing.announceTargets = announceTargets;
+    existing.allDay = allDay;
+    existing.repeat = repeat;
+    existing.repeatUntil = repeatUntil;
+    existing.legacySync = false;
+    existing.updatedAt = nowISO();
+    syncCalendarEventTargets(existing, priorEv);
+  } else {
+    const ev = { id: calendarEventId(), date, endDate, serviceTime, endServiceTime, title, location, announcementText, format, scope, announceTo, announceTargets, allDay, repeat, repeatUntil, legacySync: false, createdAt: nowISO(), updatedAt: nowISO() };
+    calendarStore.events.push(ev);
+    syncCalendarEventTargets(ev, null);
+  }
+  closeCalendarEventModal();
+  resetCalendarForm(date);
+}
+
+function editCalendarEvent(id) {
+  const ev = calendarStore.events.find(e => e.id === id);
+  if (!ev) return;
+  resetCalendarForm(ev.date);
+  openCalendarEventModal(id);
+}
+
+function deleteCalendarEvent(id) {
+  const ev = calendarStore.events.find(e => e.id === id);
+  if (!ev) return;
+  if (!confirm(`Delete "${ev.title}" from the calendar?`)) return;
+  removeCalendarEventFromTargets(ev);
+  calendarStore.events = calendarStore.events.filter(e => e.id !== id);
+  if (editingCalendarEventId === id) resetCalendarForm(ev.date);
+  saveCalendar();
+  renderCalendar();
+}
+
+function moveCalendarMonth(delta) {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + delta, 1);
+  renderCalendar();
+}
+
+function goCalendarToday() {
+  const t = new Date();
+  calendarMonth = new Date(t.getFullYear(), t.getMonth(), 1);
+  resetCalendarForm(todayISO());
+  renderCalendar();
+}
+
+function calendarEventClass(ev) {
+  const hasAnnouncements = Array.isArray(ev.announceTo) && ev.announceTo.length > 0;
+  return !hasAnnouncements ? "calendar-only" : ev.scope === "global" ? "global" : "local";
+}
+
+function calendarEventMeta(ev) {
+  const hasAnnouncements = Array.isArray(ev.announceTo) && ev.announceTo.length > 0;
+  const scopeLabel = !hasAnnouncements ? "Calendar" : ev.scope === "global" ? "Global" : "Local";
+  const serviceCount = hasAnnouncements ? ev.announceTo.length + " svc" : "";
+  const timeLabel = ev.allDay ? "Full day" : serviceTimeLabel(ev.serviceTime);
+  return [scopeLabel, timeLabel, serviceCount].filter(Boolean).join(" / ");
+}
+
+function eventRangeText(ev) {
+  const label = eventDateLabel(ev);
+  return label ? `${eventNameForAnnouncement(ev.title)} · ${label}` : eventNameForAnnouncement(ev.title);
+}
+
+function isRangeEvent(ev) {
+  return !!(ev && ev.date && normalizeEndDate(ev.date, ev.endDate) !== ev.date);
+}
+
+function getCalendarRangeSegments(visibleStartISO, visibleEndISO) {
+  const segmentsByStart = {};
+  const laneCountsByDay = {};
+  const rangeEvents = calendarStore.events
+    .filter(ev => isRangeEvent(ev))
+    .filter(ev => compareISO(normalizeEndDate(ev.date, ev.endDate), visibleStartISO) >= 0 && compareISO(ev.date, visibleEndISO) <= 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || normalizeEndDate(b.date, b.endDate).localeCompare(normalizeEndDate(a.date, a.endDate)) || a.title.localeCompare(b.title));
+
+  for (let week = 0; week < 6; week++) {
+    const weekStart = addDaysISO(visibleStartISO, week * 7);
+    const weekEnd = addDaysISO(weekStart, 6);
+    const lanes = [];
+
+    rangeEvents.forEach(ev => {
+      const eventEnd = normalizeEndDate(ev.date, ev.endDate);
+      const segmentStart = compareISO(ev.date, weekStart) > 0 ? ev.date : weekStart;
+      const segmentEnd = compareISO(eventEnd, weekEnd) < 0 ? eventEnd : weekEnd;
+      if (compareISO(segmentEnd, segmentStart) < 0) return;
+
+      const colStart = daysBetween(weekStart, segmentStart);
+      const colEnd = daysBetween(weekStart, segmentEnd);
+      let lane = lanes.findIndex(lastCol => lastCol < colStart);
+      if (lane === -1) lane = lanes.length;
+      lanes[lane] = colEnd;
+
+      (segmentsByStart[segmentStart] ||= []).push({
+        event: ev,
+        lane,
+        span: colEnd - colStart + 1,
+      });
+
+      for (let col = colStart; col <= colEnd; col++) {
+        const iso = addDaysISO(weekStart, col);
+        laneCountsByDay[iso] = Math.max(laneCountsByDay[iso] || 0, lane + 1);
+      }
+    });
+  }
+
+  return { segmentsByStart, laneCountsByDay };
+}
+
+function renderCalendar() {
+  const grid = $("calendarGrid");
+  const title = $("calendarTitle");
+  if (!grid || !title) return;
+  title.textContent = `${MONTHS_LONG[calendarMonth.getMonth()]} ${calendarMonth.getFullYear()}`;
+  grid.innerHTML = "";
+
+  ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach(day => {
+    const h = document.createElement("div");
+    h.className = "calendar-weekday";
+    h.textContent = day;
+    grid.append(h);
+  });
+
+  const first = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+  const start = new Date(first);
+  start.setDate(first.getDate() - first.getDay());
+  const today = todayISO();
+  const visibleStartISO = isoFromDate(start);
+  const visibleEndISO = addDaysISO(visibleStartISO, 41);
+  const { segmentsByStart, laneCountsByDay } = getCalendarRangeSegments(visibleStartISO, visibleEndISO);
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const iso = isoFromDate(d);
+    const day = document.createElement("div");
+    day.className = "calendar-day" +
+      (d.getMonth() === calendarMonth.getMonth() ? "" : " outside") +
+      (iso === today ? " today" : "");
+    if ((segmentsByStart[iso] || []).length) day.className += " has-range-start";
+    day.style.setProperty("--range-lanes", laneCountsByDay[iso] || 0);
+    day.onclick = () => resetCalendarForm(iso);
+
+    const head = document.createElement("div");
+    head.className = "day-head";
+    const num = document.createElement("span");
+    num.className = "day-number";
+    num.textContent = d.getDate();
+    const add = document.createElement("span");
+    add.className = "day-add";
+    add.textContent = "+";
+    add.onclick = e => { e.stopPropagation(); resetCalendarForm(iso); openCalendarEventModal(); };
+    head.append(num, add);
+    day.append(head);
+
+    (segmentsByStart[iso] || []).forEach(segment => {
+      const bar = document.createElement("div");
+      const ev = segment.event;
+      bar.className = "calendar-range-bar " + calendarEventClass(ev);
+      bar.style.setProperty("--range-lane", segment.lane);
+      bar.style.setProperty("--range-span", segment.span);
+      bar.title = [eventNameForAnnouncement(ev.title), eventDateLabel(ev), ev.announcementText].filter(Boolean).join(" · ");
+      bar.textContent = eventRangeText(ev);
+      bar.onclick = e => { e.stopPropagation(); editCalendarEvent(ev.id); };
+      day.append(bar);
+    });
+
+    const events = document.createElement("div");
+    events.className = "day-events";
+    calendarStore.events
+      .filter(e => dateInEventRange(e, iso))
+      .filter(e => !isRangeEvent(e))
+      .sort((a, b) =>
+        normalizeServiceTime(a.serviceTime).localeCompare(normalizeServiceTime(b.serviceTime)) ||
+        (a.scope || "").localeCompare(b.scope || "") ||
+        a.title.localeCompare(b.title))
+      .forEach(ev => {
+        const item = document.createElement("div");
+        item.className = "calendar-event " + calendarEventClass(ev);
+        item.onclick = e => e.stopPropagation();
+        const scope = document.createElement("span");
+        scope.className = "event-scope";
+        scope.textContent = calendarEventMeta(ev);
+        const text = document.createElement("div");
+        text.className = "event-title";
+        text.title = [ev.title, ev.announcementText, eventDateLabel(ev)].filter(Boolean).join(" · ");
+        text.textContent = eventNameForAnnouncement(ev.title);
+        const actions = document.createElement("div");
+        actions.className = "event-actions";
+        actions.append(
+          mkBtn("Edit", () => editCalendarEvent(ev.id)),
+          mkBtn("Del", () => deleteCalendarEvent(ev.id), "danger"),
+        );
+        item.append(scope, text, actions);
+        events.append(item);
+      });
+    day.append(events);
+    grid.append(day);
+  }
+}
+
+/* =========================================================================
+   FORM RENDERING — every section is a module rendered from state.modules
+   ========================================================================= */
+function hydrateForm() {
+  $("serviceDate").value = state.date || "";
+  setTimeSelect("serviceHour", "servicePeriod", state.serviceTime || "10 am");
+  $("serviceTitle").value = state.title || "";
+  if ($("outputScaleMode")) $("outputScaleMode").value = state.outputScaleMode || "auto";
+  if ($("outputScale")) $("outputScale").value = state.outputScale || "1";
+  updateOutputScaleValue();
+  renderModules();
+  updateEditorLockState();
+}
+
+const MODULE_LABELS = {
+  worship: "PRAISE & WORSHIP",
+  welcome: "WELCOME",
+  offering: "OFFERING + PRAY",
+  video: "Video",
+  globalAnnouncement: "Announcement",
+  communion: "COMMUNION",
+  kids: "Kids Presentation",
+  panel: "Panel Discussion",
+  preacher: "PREACHER",
+  benediction: "BENEDICTION PRAYER",
+  divider: "─── Divider ───",
+  custom: "Custom Module",
+};
+
+function newModule(type) {
+  switch (type) {
+    case "worship":             return { type, time: "10.00", leader: "", songs: ["", "", "", ""] };
+    case "welcome":             return { type, time: "10.20", mc: "", prayerLine: true, announcements: [""] };
+    case "offering":            return { type, time: "", person: "", duration: "2min", items: ["Giving App"] };
+    case "video":               return { type, time: "", title: "", runtime: "", description: "" };
+    case "globalAnnouncement":  return { type, time: "", heading: "", items: [""] };
+    case "communion":           return { type, time: "", title: "COMMUNION", note: "" };
+    case "kids":                return { type, time: "", title: "", duration: "", note: "" };
+    case "panel":               return { type, time: "", host: "", duration: "", participants: "" };
+    case "preacher":            return { type, time: "10.40", name: "", duration: "35min",
+                                         altarCallOn: true, altarCallItems: ["Good News Guidebook"] };
+    case "benediction":         return { type, time: "11.30" };
+    case "divider":             return { type };
+    case "custom":              return { type, time: "", heading: "", duration: "", items: [""] };
+  }
+}
+
+function addModule(type) {
+  if (isActiveRecordLocked()) return;
+  const m = newModule(type);
+  if (m.type !== "divider") m._expanded = true;   // open it so user can start editing
+  state.modules.push(m);
+  renderModules(); render(); save();
+}
+
+function mkBtn(label, fn, cls) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "tiny" + (cls ? " " + cls : "");
+  b.textContent = label; b.onclick = fn; return b;
+}
+
+// Per-type short summary shown under the title when a module is collapsed.
+function moduleSummary(m) {
+  const t = s => (s || "").toString().trim();
+  switch (m.type) {
+    case "worship": {
+      const songs = (m.songs || []).filter(x => t(x)).length;
+      return [t(m.leader), songs ? songs + (songs === 1 ? " song" : " songs") : ""]
+        .filter(Boolean).join(" · ");
+    }
+    case "welcome": {
+      const ann = (m.announcements || []).filter(x => t(x)).length;
+      return [t(m.mc), ann ? ann + (ann === 1 ? " announcement" : " announcements") : ""]
+        .filter(Boolean).join(" · ");
+    }
+    case "offering":
+      return [t(m.person), t(m.duration)].filter(Boolean).join(" · ");
+    case "video":
+      return [t(m.title), t(m.runtime)].filter(Boolean).join(" · ");
+    case "globalAnnouncement": {
+      const ann = (m.items || []).filter(x => t(x)).length;
+      return t(m.heading) || (ann ? ann + (ann === 1 ? " announcement" : " announcements") : "");
+    }
+    case "communion": return [t(m.title), t(m.note)].filter(Boolean).join(" · ");
+    case "kids":      return [t(m.title), t(m.duration), t(m.note)].filter(Boolean).join(" · ");
+    case "panel":     return [t(m.host), t(m.duration), t(m.participants)].filter(Boolean).join(" · ");
+    case "preacher": {
+      const parts = [t(m.name), t(m.duration)].filter(Boolean);
+      if (m.altarCallOn) parts.push("Altar Call");
+      return parts.join(" · ");
+    }
+    case "benediction": return "";
+    case "custom":      return [t(m.heading), t(m.duration)].filter(Boolean).join(" · ");
+    default: return "";
+  }
+}
+
+function renderModules() {
+  const root = $("modules");
+  root.innerHTML = "";
+  if (state.modules.length === 0) {
+    const e = document.createElement("div");
+    e.className = "empty-hint";
+    e.textContent = "No modules. Add one below.";
+    root.append(e); return;
+  }
+  state.modules.forEach((m, idx) => {
+    const isDivider  = m.type === "divider";
+    const isExpanded = m._expanded === true && !isDivider;
+
+    const box = document.createElement("div");
+    box.className = "module" + (isExpanded ? " expanded" : "") + (isDivider ? " divider-module" : "");
+
+    const head = document.createElement("div");
+    head.className = "module-head";
+    head.onclick = (e) => {
+      if (isActiveRecordLocked()) return;
+      if (e.target.closest("button")) return;       // ignore clicks on the action buttons
+      if (isDivider) return;                        // dividers have no body
+      m._expanded = !isExpanded;
+      renderModules(); save();
+    };
+
+    const headInfo = document.createElement("div");
+    headInfo.className = "head-info";
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "title";
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    caret.textContent = "▶";
+    const tspan = document.createElement("span");
+    const timePrefix = m.time ? `${m.time} · ` : "";
+    tspan.textContent = `${idx + 1}. ${timePrefix}${MODULE_LABELS[m.type] || m.type}`;
+    titleEl.append(caret, tspan);
+    headInfo.append(titleEl);
+
+    if (!isExpanded && !isDivider) {
+      const sumText = moduleSummary(m);
+      if (sumText) {
+        const s = document.createElement("div");
+        s.className = "summary";
+        s.textContent = sumText;
+        headInfo.append(s);
+      }
+    }
+    head.append(headInfo);
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const up = mkBtn("↑", () => { if (isActiveRecordLocked() || idx === 0) return;
+      [state.modules[idx-1], state.modules[idx]] = [state.modules[idx], state.modules[idx-1]];
+      renderModules(); render(); save(); });
+    const dn = mkBtn("↓", () => { if (isActiveRecordLocked() || idx === state.modules.length - 1) return;
+      [state.modules[idx+1], state.modules[idx]] = [state.modules[idx], state.modules[idx+1]];
+      renderModules(); render(); save(); });
+    const rm = mkBtn("×", () => {
+      if (isActiveRecordLocked()) return;
+      const label = MODULE_LABELS[m.type] || m.type;
+      if (!confirm(`Remove "${label}"?`)) return;
+      state.modules.splice(idx, 1);
+      renderModules(); render(); save();
+    }, "danger");
+    actions.append(up, dn, rm);
+    head.append(actions);
+
+    box.append(head);
+
+    if (isExpanded) {
+      const body = document.createElement("div");
+      body.className = "module-body";
+      body.append(moduleFields(m));
+      box.append(body);
+    }
+    root.append(box);
+  });
+}
+
+function moduleFields(m) {
+  const wrap = document.createElement("div");
+  const bindInput = (key, label, placeholder, cls) => {
+    const f = document.createElement("div"); f.className = "field";
+    const lab = document.createElement("label"); lab.textContent = label;
+    const inp = document.createElement("input"); inp.type = "text";
+    inp.value = m[key] || ""; inp.placeholder = placeholder || "";
+    if (cls) inp.className = cls;
+    inp.disabled = isActiveRecordLocked();
+    inp.oninput = () => { if (isActiveRecordLocked()) return; m[key] = inp.value; render(); save(); };
+    f.append(lab, inp); return f;
+  };
+  // bindCheck takes an optional rerender flag — only checkboxes that hide/show
+  // conditional fields (like altarCallOn) trigger a full re-render, since that
+  // recreates inputs and would otherwise blow away focus on a typing field.
+  const bindCheck = (key, label, rerender) => {
+    const f = document.createElement("div"); f.className = "field";
+    const lab = document.createElement("label");
+    const inp = document.createElement("input"); inp.type = "checkbox";
+    inp.checked = !!m[key];
+    inp.disabled = isActiveRecordLocked();
+    inp.onchange = () => {
+      if (isActiveRecordLocked()) return;
+      m[key] = inp.checked;
+      if (rerender) renderModules();
+      render(); save();
+    };
+    lab.append(inp, document.createTextNode(" " + label));
+    f.append(lab); return f;
+  };
+  const bindBullets = (key, label, placeholder) => {
+    const f = document.createElement("div"); f.className = "field";
+    const lab = document.createElement("label"); lab.textContent = label;
+    const list = document.createElement("div"); list.className = "bullets";
+    const repaint = () => {
+      list.innerHTML = "";
+      (m[key] || []).forEach((v, i) => {
+        const row = document.createElement("div"); row.className = "bullet";
+        const inp = document.createElement("input"); inp.type = "text"; inp.value = v;
+        inp.placeholder = placeholder || "";
+        inp.disabled = isActiveRecordLocked();
+        inp.oninput = () => { if (isActiveRecordLocked()) return; m[key][i] = inp.value; render(); save(); };
+        const del = document.createElement("button"); del.className = "tiny"; del.type = "button"; del.textContent = "×";
+        del.disabled = isActiveRecordLocked();
+        del.onclick = () => { if (isActiveRecordLocked()) return; m[key].splice(i, 1); repaint(); render(); save(); };
+        row.append(inp, del); list.append(row);
+      });
+    };
+    repaint();
+    const add = document.createElement("button"); add.className = "tiny"; add.type = "button";
+    add.textContent = "+ Add"; add.disabled = isActiveRecordLocked();
+    add.onclick = () => { if (isActiveRecordLocked()) return; (m[key] = m[key] || []).push(""); repaint(); render(); save(); };
+    f.append(lab, list, add); return f;
+  };
+
+  // Every non-divider module has an editable time (blank = untimed slot).
+  wrap.append(bindInput("time", "Time (blank for untimed)", "10.00", "time-input"));
+
+  switch (m.type) {
+    case "worship":
+      wrap.append(bindInput("leader", "Worship Leader (or 'Link')", "Leader name or Link"));
+      wrap.append(bindBullets("songs", "Songs", "Song title"));
+      break;
+    case "welcome":
+      wrap.append(bindInput("mc", "MC", "MC name"));
+      wrap.append(bindCheck("prayerLine", "Include \"PRAYER REQUESTS / PRAISE REPORTS\" line"));
+      wrap.append(bindBullets("announcements", "Local Activities Announcements", "Announcement"));
+      break;
+    case "offering":
+      wrap.append(bindInput("person", "Person praying", "e.g. Renee Yam"));
+      wrap.append(bindInput("duration", "Duration", "2min"));
+      wrap.append(bindBullets("items", "Sub-items", "e.g. Giving App"));
+      break;
+    case "video":
+      wrap.append(bindInput("title", "Video title", "e.g. HILLSONG CONFERENCE VIDEO"));
+      wrap.append(bindInput("runtime", "Runtime", "0.32"));
+      wrap.append(bindInput("description", "Description / sub-line (optional)", "e.g. Manila Story"));
+      break;
+    case "globalAnnouncement":
+      wrap.append(bindInput("heading", "Heading (optional, e.g. ANNOUNCEMENTS)", ""));
+      wrap.append(bindBullets("items", "Announcement bullets", "Announcement line"));
+      break;
+    case "communion":
+      wrap.append(bindInput("title", "Heading", "COMMUNION"));
+      wrap.append(bindInput("note", "Note / song", "e.g. What a beautiful name"));
+      break;
+    case "kids":
+      wrap.append(bindInput("title", "Title", "e.g. I LOVE MY MUM BECAUSE"));
+      wrap.append(bindInput("duration", "Duration", "4min"));
+      wrap.append(bindInput("note", "Sub-line", "Kids presentation"));
+      break;
+    case "panel":
+      wrap.append(bindInput("host", "Host", "e.g. Erica"));
+      wrap.append(bindInput("duration", "Duration", "12min"));
+      wrap.append(bindInput("participants", "Participants", "e.g. Robyn, Emily, Jocelyn"));
+      break;
+    case "preacher":
+      wrap.append(bindInput("name", "Preacher name or 'Link to Hills'", "e.g. Renee Yam"));
+      wrap.append(bindInput("duration", "Duration", "35min"));
+      wrap.append(bindCheck("altarCallOn", "Include ALTAR CALL", true));
+      if (m.altarCallOn) {
+        wrap.append(bindBullets("altarCallItems", "Altar Call sub-items", "Sub-item"));
+      }
+      break;
+    case "benediction":
+      // No extra fields — just the time.
+      break;
+    case "custom":
+      wrap.append(bindInput("heading", "Heading", "e.g. ALTAR CALL"));
+      wrap.append(bindInput("duration", "Duration (optional)", "5min"));
+      wrap.append(bindBullets("items", "Sub-items", "Sub-line"));
+      break;
+  }
+  return wrap;
+}
+
+/* =========================================================================
+   FORM -> STATE bindings for the only two static inputs left (date + title)
+   ========================================================================= */
+function wireStaticInputs() {
+  $("serviceDate").oninput  = e => {
+    if (isActiveRecordLocked()) return;
+    const oldSlot = { date: state.date, serviceTime: state.serviceTime || "" };
+    state.date = e.target.value;
+    render(); save();
+    if (oldSlot.date !== state.date) syncCalendarSlots(oldSlot, { date: state.date, serviceTime: state.serviceTime || "" });
+  };
+  const serviceTimeChanged = () => {
+    if (isActiveRecordLocked()) return;
+    const oldSlot = { date: state.date, serviceTime: state.serviceTime || "" };
+    state.serviceTime = timeFromSelect("serviceHour", "servicePeriod");
+    render(); save();
+    if (normalizeServiceTime(oldSlot.serviceTime) !== normalizeServiceTime(state.serviceTime)) {
+      syncCalendarSlots(oldSlot, { date: state.date, serviceTime: state.serviceTime || "" });
+    }
+  };
+  $("serviceHour").onchange = serviceTimeChanged;
+  $("servicePeriod").onchange = serviceTimeChanged;
+  $("serviceTitle").oninput = e => { if (isActiveRecordLocked()) return; state.title = e.target.value; render(); save(); };
+  $("outputScaleMode").onchange = e => {
+    if (isActiveRecordLocked()) return;
+    state.outputScaleMode = e.target.value === "manual" ? "manual" : "auto";
+    updateOutputScaleValue();
+    render(); save();
+  };
+  $("outputScale").oninput = e => {
+    if (isActiveRecordLocked()) return;
+    state.outputScaleMode = "manual";
+    state.outputScale = e.target.value || "1";
+    if ($("outputScaleMode")) $("outputScaleMode").value = "manual";
+    updateOutputScaleValue();
+    render(); save();
+  };
+}
+
+function wireCalendarModalInputs() {
+  ["modalEventTitle", "modalEventDate", "modalEventEndDate", "modalEventHour", "modalEventPeriod", "modalEventEndHour", "modalEventEndPeriod", "modalEventAllDay"].forEach(id => {
+    const el = $(id);
+    if (el) el.oninput = el.onchange = () => {
+      updateModalEventControls();
+      refreshModalAnnouncementLine(false);
+    };
+  });
+  $("modalEventFormat").onchange = () => refreshModalAnnouncementLine(true);
+  $("modalAnnouncementEnabled").onchange = () => {
+    updateModalAnnouncementState();
+    refreshModalAnnouncementLine(true);
+  };
+}
+
+/* =========================================================================
+   CARD STRUCTURE (shared by preview, print, docx)
+   Each "slot" =  { kind:"slot", time, main, tail, subs:[{text, style}] }
+   style is "heading" (bold 11pt) or "note" (italic 9.5pt)
+   ========================================================================= */
+const tailParens = (...parts) => parts.filter(Boolean).map(p => ` (${p})`).join("");
+
+function buildCardLines() {
+  const lines = [];
+  lines.push({ kind: "header", text: formatHeader() });
+  state.modules.forEach(m => {
+    const line = moduleLine(m);
+    if (line) lines.push(line);
+  });
+  return lines;
+}
+
+function moduleLine(m) {
+  switch (m.type) {
+    case "worship": {
+      return {
+        kind: "slot", time: m.time || "",
+        main: "PRAISE & WORSHIP",
+        tail: tailParens(m.leader),
+        subs: (m.songs || []).map(s => s.trim()).filter(Boolean)
+                .map(text => ({ text, style: "note" })),
+      };
+    }
+    case "welcome": {
+      const subs = [];
+      if (m.prayerLine) subs.push({ text: "PRAYER REQUESTS / PRAISE REPORTS", style: "heading" });
+      (m.announcements || []).forEach(a => {
+        if (a.trim()) subs.push({ text: a.trim(), style: "announcement" });
+      });
+      return {
+        kind: "slot", time: m.time || "",
+        main: "WELCOME",
+        tail: tailParens(m.mc),
+        subs,
+      };
+    }
+    case "offering": {
+      const items = (m.items || []).map(x => x.trim()).filter(Boolean);
+      return {
+        kind: "slot", time: m.time || "",
+        main: "OFFERING + PRAY",
+        tail: tailParens(m.person, m.duration),
+        subs: items.length ? [{ text: items.join(" / "), style: "note" }] : [],
+      };
+    }
+    case "video": return {
+      kind: "slot", time: m.time || "",
+      main: `# ${(m.title || "VIDEO").toUpperCase()}`,
+      tail: tailParens(m.runtime),
+      subs: m.description && m.description.trim()
+              ? [{ text: m.description.trim(), style: "note" }] : [],
+    };
+    case "globalAnnouncement": return {
+      kind: "slot", time: m.time || "",
+      main: m.heading && m.heading.trim() ? m.heading.trim() : "",
+      tail: "",
+      subs: (m.items || []).map(x => x.trim()).filter(Boolean)
+              .map(text => ({ text, style: "announcement" })),
+    };
+    case "communion": return {
+      kind: "slot", time: m.time || "",
+      main: m.title || "COMMUNION",
+      tail: "",
+      subs: m.note && m.note.trim() ? [{ text: m.note.trim(), style: "note" }] : [],
+    };
+    case "kids": return {
+      kind: "slot", time: m.time || "",
+      main: m.title || "KIDS",
+      tail: tailParens(m.duration),
+      subs: m.note && m.note.trim() ? [{ text: m.note.trim(), style: "note" }] : [],
+    };
+    case "panel": return {
+      kind: "slot", time: m.time || "",
+      main: "PANEL DISCUSSION",
+      tail: tailParens(m.host, m.duration),
+      subs: m.participants && m.participants.trim()
+              ? [{ text: m.participants.trim(), style: "note" }] : [],
+    };
+    case "preacher": {
+      const subs = [];
+      if (m.altarCallOn) {
+        subs.push({ text: "ALTAR CALL", style: "heading" });
+        const items = (m.altarCallItems || []).map(s => s.trim()).filter(Boolean);
+        if (items.length) subs.push({ text: items.join(" / "), style: "note" });
+      }
+      return {
+        kind: "slot", time: m.time || "",
+        main: m.name || "PREACHER",
+        tail: tailParens(m.duration),
+        subs,
+      };
+    }
+    case "benediction": return {
+      kind: "slot", time: m.time || "",
+      main: "BENEDICTION PRAYER",
+      tail: "", subs: [],
+    };
+    case "divider": return { kind: "divider" };
+    case "custom": return {
+      kind: "slot", time: m.time || "",
+      main: m.heading || "MODULE",
+      tail: tailParens(m.duration),
+      subs: (m.items || []).map(x => x.trim()).filter(Boolean)
+              .map(text => ({ text, style: m.itemStyle === "heading" ? "heading" : "note" })),
+    };
+  }
+  return null;
+}
+
+function formatHeader() {
+  const t = [state.title || "Sunday Morning", serviceTimeLabel(state.serviceTime)].filter(Boolean).join(" ");
+  const d = state.date ? prettyDate(state.date) : "";
+  return d ? `${t} ${d}` : t;
+}
+function prettyDate(iso) {
+  // iso = yyyy-mm-dd -> "31 May 2026"
+  const [y, m, d] = iso.split("-").map(Number);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  if (!y || !m || !d) return iso;
+  return `${d} ${months[m-1]} ${y}`;
+}
+
+function estimateContentUnits(lines) {
+  let units = 0;
+  (lines || []).forEach(line => {
+    if (line.kind === "header") return;
+    if (line.kind === "divider") {
+      units += 1.2;
+      return;
+    }
+    if (line.kind === "slot") {
+      units += 1.35;
+      (line.subs || []).forEach(s => {
+        const text = s.text || "";
+        const wrapUnits = Math.max(1, Math.ceil(text.length / 34));
+        units += s.style === "note" ? wrapUnits * .95 : wrapUnits * 1.05;
+      });
+      units += .45;
+    }
+  });
+  return units;
+}
+
+function autoOutputScale(lines) {
+  const units = estimateContentUnits(lines);
+  if (units <= 29) return 1;
+  if (units <= 33) return .95;
+  if (units <= 37) return .9;
+  if (units <= 42) return .85;
+  if (units <= 48) return .8;
+  return .75;
+}
+
+function outputScaleForLines(lines) {
+  if ((state.outputScaleMode || "auto") === "manual") {
+    const n = Number(state.outputScale || "1");
+    return Number.isFinite(n) ? Math.min(1, Math.max(.75, n)) : 1;
+  }
+  return autoOutputScale(lines);
+}
+
+function updateOutputScaleValue() {
+  const value = Number(state.outputScale || "1");
+  const pct = Number.isFinite(value) ? Math.round(value * 100) : 100;
+  if ($("outputScaleValue")) $("outputScaleValue").textContent = `${pct}%`;
+}
+
+/* =========================================================================
+   PREVIEW (HTML) — also reused for @media print as 6 cards
+   ========================================================================= */
+function renderCardHTML(lines, scale) {
+  lines = lines || buildCardLines();
+  scale = scale || outputScaleForLines(lines);
+  const root = document.createElement("div");
+  root.style.setProperty("--output-scale", String(scale));
+  lines.forEach(line => {
+    if (line.kind === "header") {
+      const h = document.createElement("div"); h.className = "date-hdr"; h.textContent = line.text;
+      root.append(h);
+      return;
+    }
+    if (line.kind === "divider") {
+      const hr = document.createElement("hr"); hr.className = "divider";
+      root.append(hr);
+      return;
+    }
+    // slot
+    const slot = document.createElement("div"); slot.className = "slot";
+    if (line.time || line.main) {
+      const head = document.createElement("div"); head.className = "slot-head";
+      const t = document.createElement("span"); t.className = "time";
+      t.textContent = line.time || "";
+      head.append(t);
+      const main = document.createElement("span"); main.className = "main"; main.textContent = line.main || "";
+      head.append(main);
+      if (line.tail) {
+        const tail = document.createElement("span"); tail.className = "tail";
+        // Use non-breaking space so flex layout doesn't collapse the leading whitespace
+        tail.textContent = line.tail.replace(/^ /, " ");
+        head.append(tail);
+      }
+      slot.append(head);
+    }
+    (line.subs || []).forEach(s => {
+      if (s.style === "announcement") {
+        const r = document.createElement("div"); r.className = "sub sub-announcement";
+        const b = document.createElement("span"); b.className = "bullet"; b.textContent = "•";
+        const t = document.createElement("span"); t.className = "ann-text"; t.textContent = s.text;
+        r.append(b, t);
+        slot.append(r);
+      } else {
+        const r = document.createElement("div");
+        r.className = "sub " + (s.style === "heading" ? "sub-heading" : "sub-note");
+        r.textContent = s.text;
+        slot.append(r);
+      }
+    });
+    root.append(slot);
+  });
+  return root;
+}
+
+function render() {
+  const lines = buildCardLines();
+  const scale = outputScaleForLines(lines);
+  // preview
+  const prev = $("preview");
+  prev.innerHTML = "";
+  prev.style.setProperty("--output-scale", String(scale));
+  prev.append(renderCardHTML(lines, scale));
+  // print root: 2 pages × 3 cards = 6 total. Explicit page wrappers give
+  // browsers reliable break points (CSS multi-column breaks across pages
+  // are notoriously unreliable in print-to-PDF).
+  const pr = $("printRoot");
+  pr.innerHTML = "";
+  for (let p = 0; p < 2; p++) {
+    const page = document.createElement("div");
+    page.className = "print-page";
+    for (let c = 0; c < 3; c++) {
+      const card = document.createElement("div");
+      card.className = "print-card";
+      card.style.setProperty("--output-scale", String(scale));
+      card.append(renderCardHTML(lines, scale));
+      page.append(card);
+    }
+    pr.append(page);
+  }
+  // If the Word preview tab is currently visible, refresh it (debounced).
+  scheduleDocxPreviewIfActive();
+}
+
+/* =========================================================================
+   DOCX BUILD + EXPORT + IN-BROWSER PREVIEW
+   buildDocxBlob() does the actual work; exportDOCX triggers download,
+   refreshDocxPreview renders the same blob into the Word preview pane.
+   ========================================================================= */
+async function buildDocxBlob() {
+  if (typeof docx === "undefined") {
+    throw new Error("DOCX library failed to load. Check your internet connection.");
+  }
+  const { Document, Packer, Paragraph, TextRun, TabStopType, AlignmentType,
+          PageOrientation, Tab, BorderStyle, ColumnBreak, PageBreak, LineRuleType } = docx;
+
+  const lines = buildCardLines();
+  const outputScale = outputScaleForLines(lines);
+  const paragraphs = [];
+
+  const TAB_POS = 720;  // 36pt = 12.7mm; aligns module-name column without crowding narrow 3-col print
+  const FONT = "Arial";
+  // docx sizes are in half-points: 22 = 11pt, 19 = 9.5pt
+  const SZ_HEADER = 22;
+  const SZ_BODY = Math.max(16, Math.round(22 * outputScale));
+  const SZ_NOTE = Math.max(14, Math.round(19 * outputScale));
+
+  const pSpacing = (after) => ({ spacing: { before: 0, after: after || 0, line: 260 } });
+
+  function headerPara(text) {
+    return new Paragraph({
+      ...pSpacing(120),
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text, font: FONT, size: SZ_HEADER })],
+    });
+  }
+  function slotHeadPara(time, main, tail) {
+    const children = [];
+    if (time) {
+      children.push(new TextRun({ text: time, bold: true, font: FONT, size: SZ_BODY }));
+      children.push(new TextRun({ children: [new Tab()] }));
+    }
+    children.push(new TextRun({ text: main, bold: true, font: FONT, size: SZ_BODY }));
+    if (tail) children.push(new TextRun({ text: tail, font: FONT, size: SZ_BODY }));
+    const opts = {
+      ...pSpacing(40),
+      tabStops: [{ type: TabStopType.LEFT, position: TAB_POS }],
+      children,
+    };
+    // Untimed slot heads (OFFERING, # VIDEO, etc.) start at the module-name column
+    if (!time) opts.indent = { left: TAB_POS };
+    return new Paragraph(opts);
+  }
+  function subPara(s) {
+    if (s.style === "announcement") {
+      // bullet at column 0, text immediately after — no indent
+      return new Paragraph({
+        ...pSpacing(20),
+        children: [
+          new TextRun({ text: "• ", bold: true, font: FONT, size: SZ_BODY }),
+          new TextRun({ text: s.text, bold: true, font: FONT, size: SZ_BODY, highlight: "yellow" }),
+        ],
+      });
+    }
+    if (s.style === "heading") {
+      return new Paragraph({
+        ...pSpacing(0),
+        indent: { left: TAB_POS },
+        children: [new TextRun({ text: s.text, bold: true, font: FONT, size: SZ_BODY })],
+      });
+    }
+    return new Paragraph({
+      ...pSpacing(0),
+      indent: { left: TAB_POS },
+      children: [new TextRun({ text: s.text, italics: true, font: FONT, size: SZ_NOTE })],
+    });
+  }
+  function dividerPara() {
+    return new Paragraph({
+      spacing: { before: 80, after: 120, line: 240 },
+      border: { bottom: { color: "000000", style: BorderStyle.SINGLE, size: 8, space: 1 } },
+      children: [new TextRun({ text: "" })],
+    });
+  }
+  function blankPara() {
+    return new Paragraph({ ...pSpacing(40), children: [new TextRun({ text: "" })] });
+  }
+  // Compact break paragraphs. ColumnBreak/PageBreak are run-level elements, so
+  // they go DIRECTLY in Paragraph.children — wrapping them in a TextRun produces
+  // a nested <w:r> inside <w:r>, which is invalid OOXML and silently ignored
+  // by renderers (cards then flow across columns instead of breaking).
+  //
+  // CRITICAL: a paragraph containing only a column-break still allocates one
+  // line of vertical space, and that line ends up at the TOP of the next column
+  // — making cards 2 and 3 sit ~1 line lower than card 1. Forcing the paragraph
+  // to use lineRule EXACT with line=20 (1pt) collapses that ghost line so all
+  // three date headers align across columns.
+  const breakSpacing = { before: 0, after: 0, line: 20, lineRule: LineRuleType.EXACT };
+  function columnBreakPara() {
+    return new Paragraph({ spacing: breakSpacing, children: [new ColumnBreak()] });
+  }
+  function pageBreakPara() {
+    return new Paragraph({ spacing: breakSpacing, children: [new PageBreak()] });
+  }
+
+  function pushCard() {
+    lines.forEach(line => {
+      if (line.kind === "header") {
+        paragraphs.push(headerPara(line.text));
+        paragraphs.push(blankPara());
+      } else if (line.kind === "divider") {
+        paragraphs.push(dividerPara());
+      } else if (line.kind === "slot") {
+        if (line.time || line.main) paragraphs.push(slotHeadPara(line.time, line.main, line.tail));
+        (line.subs || []).forEach(s => paragraphs.push(subPara(s)));
+        paragraphs.push(blankPara());
+      }
+    });
+  }
+
+  // 6 copies arranged as 3 cards per landscape A4 page (one card per column).
+  // Cards 1-3 fill columns 1-3 of page 1; card 4 starts page 2; cards 4-6 fill
+  // columns 1-3 of page 2. Without these explicit breaks, docx flows content
+  // continuously and a single card spans multiple columns.
+  for (let i = 0; i < 6; i++) {
+    if (i === 3) paragraphs.push(pageBreakPara());          // page break before card 4
+    else if (i > 0) paragraphs.push(columnBreakPara());     // column break before cards 2, 3, 5, 6
+    pushCard();
+  }
+
+  // Landscape A4 = 16838 x 11906 twips
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          // docx.js wants portrait dims + LANDSCAPE flag; it handles the swap.
+          size: { width: 11906, height: 16838, orientation: PageOrientation.LANDSCAPE },
+          margin: { top: 280, right: 280, bottom: 280, left: 280 },
+        },
+        column: { count: 3, space: 400, equalWidth: true },
+      },
+      children: paragraphs,
+    }],
+  });
+
+  return await Packer.toBlob(doc);
+}
+
+async function exportDOCX() {
+  try {
+    const blob = await buildDocxBlob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filenameBase() + ".docx";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  } catch (e) {
+    alert("DOCX export failed: " + e.message);
+  }
+}
+
+/* ---- Tabs + Word preview ---- */
+function showTab(name) {
+  document.querySelectorAll(".tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.tab === name);
+  });
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  const pane = document.getElementById(name === "html" ? "tabHtml" : "tabDocx");
+  if (pane) pane.classList.add("active");
+  if (name === "docx") refreshDocxPreview();
+}
+
+let _docxPreviewTimer = null;
+let _docxPreviewLastUrl = null;
+function scheduleDocxPreviewIfActive() {
+  const tab = document.getElementById("tabDocx");
+  if (!tab || !tab.classList.contains("active")) return;
+  clearTimeout(_docxPreviewTimer);
+  _docxPreviewTimer = setTimeout(refreshDocxPreview, 400);
+}
+
+async function refreshDocxPreview() {
+  const container = document.getElementById("docxPreview");
+  const status = document.getElementById("docxStatus");
+  if (!window.__docxPreview || typeof window.__docxPreview.renderAsync !== "function") {
+    status.textContent = "docx-preview library not loaded (check your internet connection).";
+    return;
+  }
+  status.textContent = "Building preview…";
+  try {
+    const blob = await buildDocxBlob();
+    container.innerHTML = "";
+    await window.__docxPreview.renderAsync(blob, container, null, {
+      className: "docx",
+      inWrapper: true,
+      ignoreWidth: false,
+      ignoreHeight: false,
+      ignoreFonts: false,
+      breakPages: true,
+      experimental: false,
+      useBase64URL: false,
+    });
+    fitDocxPagesToWidth();
+    status.textContent = "Showing live preview of the .docx (3 cards × 2 pages = 6 total).";
+  } catch (e) {
+    status.textContent = "Preview failed: " + e.message;
+  }
+}
+
+// docx-preview renders pages at native A4 landscape size (~1123 CSS px wide),
+// which overflows the right edge of the preview pane on most screens. We use
+// the CSS `zoom` property (not `transform: scale` — that leaves the layout box
+// at full size and causes huge empty gaps). `zoom` is supported by Chrome,
+// Edge, Safari, and Firefox 126+ (May 2024), so anything modern works.
+function fitDocxPagesToWidth() {
+  const container = document.getElementById("docxPreview");
+  if (!container) return;
+  const sections = container.querySelectorAll("section.docx");
+  if (!sections.length) return;
+
+  // Reset prior zoom so we can re-measure natural width
+  sections.forEach(s => { s.style.zoom = ""; });
+  const natW = sections[0].getBoundingClientRect().width;
+  const avail = container.clientWidth - 4;
+  if (natW <= 0 || avail <= 0) return;
+
+  const z = Math.min(1, avail / natW);
+  if (z >= 0.999) return;
+  sections.forEach(s => { s.style.zoom = String(z); });
+}
+
+// Re-fit when the viewport changes (rotate phone, resize window).
+window.addEventListener("resize", () => {
+  const tab = document.getElementById("tabDocx");
+  if (tab && tab.classList.contains("active")) fitDocxPagesToWidth();
+});
+
+function filenameBase() {
+  const d = state.date ? prettyDate(state.date) : "RunSheet";
+  const safe = [state.title || "Run Sheet", serviceTimeLabel(state.serviceTime)]
+    .filter(Boolean).join(" ").replace(/[^A-Za-z0-9_-]+/g, "_");
+  return `${d.replace(/ /g, "_")}_${safe}`;
+}
+
+/* =========================================================================
+   VIEW SWITCHING + RECORD LIST
+   ========================================================================= */
+function showView(name) {
+  const list   = $("viewList");
+  const editor = $("viewEditor");
+  const back   = $("backBtn");
+  const btns   = $("editorBtns");
+  if (name === "list") {
+    list.hidden = false;
+    editor.hidden = true;
+    back.hidden = true;
+    btns.hidden = true;
+  } else {
+    list.hidden = true;
+    editor.hidden = false;
+    back.hidden = false;
+    btns.hidden = false;
+  }
+}
+
+function goToList() {
+  // Save the current record's updatedAt one last time before leaving the editor
+  save();
+  showView("list");
+  renderRecordList();
+  renderCalendar();
+}
+
+/* =========================================================================
+   AUTH + ONLINE BOOTSTRAP
+   ========================================================================= */
+function supabaseConfigured() {
+  return SUPABASE_URL &&
+    SUPABASE_ANON_KEY &&
+    !SUPABASE_URL.includes("YOUR_SUPABASE") &&
+    !SUPABASE_ANON_KEY.includes("YOUR_SUPABASE");
+}
+
+function setAuthMessage(message, isError) {
+  const el = $("authMessage");
+  if (!el) return;
+  el.textContent = message || "";
+  el.classList.toggle("error", !!isError);
+}
+
+function setAuthMode(mode) {
+  authMode = mode === "register" ? "register" : "login";
+  $("authTitle").textContent = authMode === "register" ? "Register" : "Login";
+  $("authSubmit").textContent = authMode === "register" ? "Register" : "Login";
+  $("loginTab").classList.toggle("active", authMode === "login");
+  $("registerTab").classList.toggle("active", authMode === "register");
+  setAuthMessage("");
+}
+
+function showAuthScreen(message, isError) {
+  $("authView").hidden = false;
+  $("appHeader").hidden = true;
+  $("viewList").hidden = true;
+  $("viewEditor").hidden = true;
+  $("editorBtns").hidden = true;
+  $("authUser").hidden = true;
+  $("signOutBtn").hidden = true;
+  setAuthMessage(message || "", isError);
+}
+
+function showAppShell() {
+  $("authView").hidden = true;
+  $("appHeader").hidden = false;
+  $("authUser").hidden = false;
+  $("signOutBtn").hidden = false;
+  $("authUser").textContent = currentUser && currentUser.email ? currentUser.email : "Signed in";
+}
+
+async function handleAuthSubmit() {
+  if (!supabaseConfigured()) {
+    setAuthMessage("Add your Supabase URL and anon key in indexv4.4.html first.", true);
+    return;
+  }
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+  if (!email || !password) {
+    setAuthMessage("Enter email and password.", true);
+    return;
+  }
+  $("authSubmit").disabled = true;
+  setAuthMessage(authMode === "register" ? "Creating account..." : "Signing in...");
+  try {
+    if (authMode === "register") {
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.session) {
+        await startAuthenticatedApp(data.session.user);
+      } else {
+        setAuthMode("login");
+        setAuthMessage("Registration created. Check your email if confirmation is enabled, then log in.");
+        $("authEmail").value = email;
+      }
+    } else {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      await startAuthenticatedApp(data.user);
+    }
+  } catch (e) {
+    setAuthMessage(e.message || "Authentication failed.", true);
+  } finally {
+    $("authSubmit").disabled = false;
+  }
+}
+
+async function signOut() {
+  try { await saveCloudNow(); } catch (e) {}
+  cloudReady = false;
+  currentUser = null;
+  if (supabaseClient) await supabaseClient.auth.signOut();
+  showAuthScreen("Signed out.");
+}
+
+async function startAuthenticatedApp(user) {
+  currentUser = user;
+  cloudReady = false;
+  showAppShell();
+  setAuthMessage("Loading shared scheduler...");
+  await loadCloudState();
+  cloudReady = true;
+
+  const active = getActiveRecord();
+  state = active ? active.state : DEFAULT_STATE();
+
+  hydrateForm();
+  render();
+  resetCalendarForm(todayISO());
+  renderCalendar();
+  renderRecordList();
+  showView("list");
+  setAuthMessage("");
+  await saveCloudNow();
+}
+
+function relativeTime(iso) {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  const diff = (Date.now() - then) / 1000;
+  if (diff < 5) return "just now";
+  if (diff < 60) return Math.floor(diff) + "s ago";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  if (diff < 86400 * 7) return Math.floor(diff / 86400) + "d ago";
+  return new Date(iso).toLocaleDateString();
+}
+
+// Short preview of what's in the record — first few module names.
+function recordPreviewText(s) {
+  if (!s || !Array.isArray(s.modules) || s.modules.length === 0) return "(empty)";
+  const names = s.modules
+    .filter(m => m.type !== "divider")
+    .slice(0, 4)
+    .map(m => (MODULE_LABELS[m.type] || m.type));
+  const more = s.modules.filter(m => m.type !== "divider").length - names.length;
+  return names.join(" · ") + (more > 0 ? "  +" + more + " more" : "");
+}
+
+const MONTHS_LONG = ["January","February","March","April","May","June",
+                     "July","August","September","October","November","December"];
+
+function groupKey(rec) {
+  return rec.state.date ? rec.state.date.substring(0, 7) : "drafts";
+}
+function groupLabel(key) {
+  if (key === "drafts") return "Drafts (no date)";
+  const [y, m] = key.split("-");
+  return `${MONTHS_LONG[+m - 1]} ${y}`;
+}
+function groupSortValue(key) {
+  return key === "drafts" ? "9999-99" : key;  // drafts pinned to top
+}
+function isGroupCollapsed(key, isFirstNonDrafts) {
+  // No saved preference yet: Drafts always open, plus the most recent
+  // month-group. Everything else collapsed by default.
+  if (!Array.isArray(store.collapsedGroups)) {
+    if (key === "drafts") return false;
+    return !isFirstNonDrafts;
+  }
+  return store.collapsedGroups.includes(key);
+}
+function toggleGroup(key) {
+  if (!Array.isArray(store.collapsedGroups)) {
+    // First explicit interaction — capture the current default expanded
+    // set so the next toggle behaves predictably.
+    const all = Object.keys(groupRecordsByMonth()).sort((a, b) =>
+      groupSortValue(b).localeCompare(groupSortValue(a)));
+    const firstNonDraftsIdx = all[0] === "drafts" ? 1 : 0;
+    store.collapsedGroups = all.filter((k, i) =>
+      k !== "drafts" && i !== firstNonDraftsIdx);
+  }
+  const i = store.collapsedGroups.indexOf(key);
+  if (i >= 0) store.collapsedGroups.splice(i, 1);
+  else store.collapsedGroups.push(key);
+  saveStore();
+  renderRecordList();
+}
+function setRecordView(name) {
+  recordView = name;
+  document.querySelectorAll(".runsheet-tab").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.recordView === name);
+  });
+  renderRecordList();
+}
+
+function groupRecordsByMonth() {
+  const out = {};
+  filteredRecordsForView().forEach(rec => {
+    const k = groupKey(rec);
+    (out[k] = out[k] || []).push(rec);
+  });
+  return out;
+}
+
+function filteredRecordsForView() {
+  if (recordView === "archived") return store.records.filter(r => r.archivedAt && !r.deletedAt);
+  if (recordView === "deleted") return store.records.filter(r => r.deletedAt);
+  return store.records.filter(r => !r.archivedAt && !r.deletedAt);
+}
+
+function renderRecordList() {
+  const root = $("recordList");
+  root.innerHTML = "";
+
+  const visibleRecords = filteredRecordsForView();
+  if (visibleRecords.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    const emptyLabels = {
+      active: ["No active run sheets", "Use the calendar to schedule announcements or tap <em>+ New</em> to create a run sheet."],
+      archived: ["No archived run sheets", "Finished services can be archived here and restored later."],
+      deleted: ["Bin is empty", "Deleted run sheets will appear here until permanently removed."],
+    };
+    const [headline, body] = emptyLabels[recordView] || emptyLabels.active;
+    empty.innerHTML = `<strong>${headline}</strong>${body}`;
+    root.append(empty);
+    return;
+  }
+
+  const groups = groupRecordsByMonth();
+  const groupKeys = Object.keys(groups).sort((a, b) =>
+    groupSortValue(b).localeCompare(groupSortValue(a)));
+  const firstNonDraftsIdx = groupKeys[0] === "drafts" ? 1 : 0;
+
+  groupKeys.forEach((key, gIdx) => {
+    const recs = groups[key].sort((a, b) =>
+      (b.state.date || "").localeCompare(a.state.date || "")
+      || (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+
+    const expanded = !isGroupCollapsed(key, gIdx === firstNonDraftsIdx);
+    const groupEl = document.createElement("div");
+    groupEl.className = "group" + (expanded ? " expanded" : "");
+
+    const header = document.createElement("div");
+    header.className = "group-header";
+    header.onclick = () => toggleGroup(key);
+
+    const caret = document.createElement("span");
+    caret.className = "group-caret";
+    caret.textContent = "▶";
+    const title = document.createElement("span");
+    title.className = "group-title";
+    title.textContent = groupLabel(key);
+    const count = document.createElement("span");
+    count.className = "group-count";
+    count.textContent = recs.length;
+    header.append(caret, title, count);
+    groupEl.append(header);
+
+    const body = document.createElement("div");
+    body.className = "group-body";
+    recs.forEach(rec => {
+      const row = document.createElement("div");
+      row.className = "svc-row" + (rec.archivedAt ? " archived" : "") + (rec.deletedAt ? " deleted" : "");
+      row.onclick = (e) => {
+        if (e.target.closest("button")) return;
+        if (!rec.deletedAt) openRecord(rec.id);
+      };
+
+      const info = document.createElement("div");
+      info.className = "svc-info";
+      const titleEl = document.createElement("div");
+      titleEl.className = "svc-title";
+      titleEl.textContent = serviceDisplayTitle(rec.state);
+      const metaEl = document.createElement("div");
+      metaEl.className = "svc-meta";
+      const dateStr = rec.state.date ? prettyDate(rec.state.date) : "no date";
+      metaEl.textContent = dateStr + " · updated " + relativeTime(rec.updatedAt);
+      info.append(titleEl, metaEl);
+
+      const actions = document.createElement("div");
+      actions.className = "svc-actions";
+      const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+      if (recordView === "deleted") {
+        actions.append(
+          mkBtn("Restore", stop(() => restoreRecord(rec.id))),
+          mkBtn("Remove",  stop(() => permanentlyDeleteRecord(rec.id)), "danger"),
+        );
+      } else if (recordView === "archived") {
+        actions.append(
+          mkBtn("Open",      stop(() => openRecord(rec.id))),
+          mkBtn("Unarchive", stop(() => unarchiveRecord(rec.id))),
+          mkBtn("Bin",       stop(() => deleteRecord(rec.id)), "danger"),
+        );
+      } else {
+        actions.append(
+          mkBtn("Duplicate", stop(() => duplicateRecord(rec.id))),
+          mkBtn("Archive",   stop(() => archiveRecord(rec.id))),
+          mkBtn("Bin",       stop(() => deleteRecord(rec.id)), "danger"),
+        );
+      }
+
+      row.append(info, actions);
+      body.append(row);
+    });
+    groupEl.append(body);
+    root.append(groupEl);
+  });
+}
+
+/* =========================================================================
+   BOOT
+   ========================================================================= */
+function $(id) { return document.getElementById(id); }
+async function boot() {
+  populateTimeSelects();
+  wireStaticInputs();
+  wireCalendarModalInputs();
+  setAuthMode("login");
+
+  if (!supabaseConfigured()) {
+    $("authConfigHint").hidden = false;
+    $("authSubmit").disabled = true;
+    showAuthScreen("Supabase configuration required.", true);
+    return;
+  }
+
+  $("authConfigHint").hidden = true;
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) {
+    showAuthScreen(error.message, true);
+    return;
+  }
+
+  if (!data.session) {
+    showAuthScreen("");
+    return;
+  }
+
+  try {
+    await startAuthenticatedApp(data.session.user);
+  } catch (e) {
+    showAuthScreen("Could not load shared scheduler: " + (e.message || e), true);
+  }
+}
+document.addEventListener("DOMContentLoaded", boot);
+</script>
+</body>
+</html>
